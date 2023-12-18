@@ -8,8 +8,6 @@ int main() {
     controlCenter.addDrone(drone1);
     controlCenter.addDrone(drone2);
 
-    // Simulazione e altre operazioni del main
-    // ...
 
     return 0;
 }
