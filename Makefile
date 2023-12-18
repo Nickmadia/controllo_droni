@@ -15,7 +15,7 @@ SOURCES = $(wildcard $(SRCDIR)/*.cpp)
 OBJDIR = obj
 OBJECTS = $(patsubst $(SRCDIR)/%.cpp, $(OBJDIR)/%.o, $(SOURCES))
 
-all: $(Target)
+
 # Comando per creare il programma eseguibile
 $(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) $(OBJECTS) -o $(TARGET)
@@ -30,3 +30,5 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cpp
 clean:
 	rm -f $(OBJDIR)/*.o $(TARGET)
 
+
+all: $(Target)

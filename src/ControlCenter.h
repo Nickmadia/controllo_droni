@@ -1,11 +1,11 @@
 #ifndef CONTROL_CENTER_H
 #define CONTROL_CENTER_H
-
+#include <vector>
 #include "Drone.h" // Includi il file dell'header della classe Drone
 
 class ControlCenter {
 private:
-    vector<Drone> drones;
+    std::vector<Drone> drones;
     // Altri attributi privati della classe ControlCenter
     // ...
 
@@ -15,7 +15,7 @@ public:
     void addDrone(Drone drone);
     void sendInstructions();
     void updateMonitoringData();
-    vector<Drone>& getDrones(); // Metodo per ottenere i droni
+    std::vector<Drone>& getDrones(); // Metodo per ottenere i droni
     // ...
 };
 

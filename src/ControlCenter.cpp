@@ -1,5 +1,5 @@
 #include "ControlCenter.h"
-
+#include <vector>
 // Implementazione dei metodi della classe ControlCenter
 ControlCenter::ControlCenter() {/* Costruttore */}
 
@@ -18,7 +18,7 @@ void ControlCenter::updateMonitoringData() {
     // ...
 }
 
-vector<Drone>& ControlCenter::getDrones() {
+std::vector<Drone>& ControlCenter::getDrones() {
     return drones;
 }
 
