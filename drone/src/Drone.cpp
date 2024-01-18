@@ -1,11 +1,18 @@
 #include "Drone.h"
 
 // Implementazione dei metodi della classe Drone
-Drone::Drone(int id) : droneID(id), batteryLevel(100), isCharging(false) {/* Costruttore */}
+Drone::Drone(int id) :  {
+    drone_id = id;
+    battery_level = 100, 
+    is_charging= false,
+    x= 0;
+    y= 0;
+    speed = 0;
+    control_radius = 10;
+ }
 
-void Drone::update() {
-    // Implementazione dell'aggiornamento dello stato del drone
-    // ...
+void Drone::update(int ) {
+    
 }
 
 void Drone::chargeDrone() {

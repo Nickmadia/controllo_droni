@@ -4,10 +4,13 @@
 class Drone {
 private:
     // Attributi privati della classe Drone
-    int droneID; // Identificativo unico del drone
-    float batteryLevel; // Livello della batteria
-    bool isCharging; 
-public:
+    int drone_id; // Identificativo unico del drone
+    float current_speed;
+    float battery_level; // Livello della batteria
+    bool is_charging; 
+    float x;
+    float y;
+Public:
     // Costruttore e metodi pubblici della classe Drone
     Drone(int id);
     void update();

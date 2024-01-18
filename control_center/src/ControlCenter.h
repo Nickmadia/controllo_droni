@@ -6,16 +6,16 @@
 class ControlCenter {
 private:
     std::vector<Drone> drones;
-    // Altri attributi privati della classe ControlCenter
-    // ...
+    time * grid;// griglia 2d ultima ora di verifica
+
 
 public:
     // Metodi pubblici della classe ControlCenter
     ControlCenter();
+    void wait();//aspetta il messaggio di "ready" dai droni
     void addDrone(Drone drone);
-    void sendInstructions();
+    void sendInstruction();
     void updateMonitoringData();
-    std::vector<Drone>& getDrones(); // Metodo per ottenere i droni
     // ...
 };
 
