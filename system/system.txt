@@ -1,0 +1,43 @@
+system:
+    control_center:
+        for t in horizon: //tempo simulazione
+            sync con droni per il tempo t //chiamata bloccante tramite redis
+            
+            SOLO PRIMA VOLTA   
+                , wait drone setup | bloccante// all 'avvio ogni drone manda un messaggio al control_center con il suo status
+
+                per ogni drone decidere cosa fare
+
+                send messaggio bloccante ai droni con le aree da verificare
+            
+            wait drone status ( per ogni drone aspettiamo un messaggio) rispondere di conseguenza
+                se autonomia <= distanza control_center x2 :
+                    manda altro drone in quell area
+                    invia messaggio al drone di tornare a caricare
+            
+            log drones status //loggare requisiti funzionali e non funzionali
+
+    drones:
+        while true:
+            sync con control_center su t
+
+            SOLO PRIMA VOLTA:
+                send status 
+                wait jobs
+
+            send drone status
+
+
+monitor:
+    analizza db logs per verificare se i requisiti sono soddisfatti
+    req. funz:
+        I. ogni punto deve essere verficato almeno ogni 5 min 
+        II. I droni non si devono mai scaricare in volo ( almeno tot batteria per tornare a ricaricarsi)
+        III. l area deve essere verificata in tempo t 
+
+    req non funz.
+    //     I droni devono ricaricarsi fra le 2 e le tre ore.
+    // droni max
+            
+
+            
