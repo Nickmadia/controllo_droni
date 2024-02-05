@@ -16,17 +16,24 @@ private:
     std::vector<Drone> drones;// vector of drones ids, make another drone class
     time_t grid[WIDTH][HEIGHT];// griglia 2d of time stamps in unix epoch, will be used to calculate verified time
     Status status;
+    redisContext *c;
+    const char * sync_stream = "sync_stream";
+    const char * drone_stream = "drone_stream";
+    int block_time = 10000000;
 
 public:
     // Metodi pubblici della classe ControlCenter
     ControlCenter();
+    void init();
     void sync();
-    void tick();//aspetta il messaggio di "ready" dai droni
+    void tick();
+
     void create_subarea(); // divides the area current(600x600) in sub_areas to be assigned to the individual drones
-    void send_instruction(int id); //sends the drone an istruction to start a task
+    void divide_tasks(); // assign the subareas to the available drones
+    int get_available_drone();
+    bool send_instruction(int id); //sends the drone an istruction to start a task
 
     // sub areas must be of a max of 250 points - or if sqrt(250) = l, lxl -1 // 
-    void divide_tasks(); // assign the subareas to the available drones
     void check_verified(); // checks whether a point has been verified in the last 5 min, if not logs functional requisite has been violeted - checks every point on the grid 
     bool is_verified(); // checks single point
     void run(); //main function, it has the loop on every drone at every istant of time t
@@ -36,5 +43,7 @@ public:
 
     // ...
 };
+
+//need a dummy drone class
 
 #endif // CONTROL_CENTER_H
