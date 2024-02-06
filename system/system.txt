@@ -49,16 +49,17 @@ system:
                 }
 
                 if running {
-                    ifnd status + position + batteria
-                    if STOP{
+                    if STOP(autonomia<= d control_center x2){
+                        send returning msg
                         vai in returning
+                        
                     }
                 }
 
                 if returning{
                     torna alla base
                     send ack
-                    if posizione = baif {
+                    if posizione = base {
                         vai in charging;
                         send ack
                         set random charge time fra[2,3]

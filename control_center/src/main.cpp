@@ -14,6 +14,7 @@ int main(int argc, char *argv[]) {
         when ready starts assigning jobs
         when regime works normally
         */
+        cc.check_area();
         cc.log();
     }
 }
