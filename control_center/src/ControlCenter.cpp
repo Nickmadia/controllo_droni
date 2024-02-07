@@ -93,13 +93,24 @@ void ControlCenter::await_sync() {
     // we could send the time t in the stream or get it calculated from the drones
 }
 
-void ControlCenter::handle_msg(const char * type, redisReply reply) {
+void ControlCenter::handle_msg(const char * type, redisReply reply, int id) {
     switch(type) {
         case "low_battery":
+        //low_battery msgtype e.g. type low_battery did 123 cy 0 cx 0 nexty 40 next x 65 dirx -1
+
+        //create job using next coord. and subarea coord.
+        // send job to the first IDLE drone
+        //change new drone status
+
+        // change lowe_battery_id status to homing
             break;
         case "charging":
+        //charging msgtype e.g. type charging did 123
+        // change is status to charging
             break;
         case "recharged":
+        //recharged msgtype e.g. type recharged
+        // change id status to IDLE
             break;
     }
 }
@@ -181,7 +192,7 @@ void ControlCenter::tick(int t) {
                     //send message to drone this->drones[i*subareasy + subareax] with coord (i,j), sp and sd
 
                     char *message_id = "*"; // Send to the latest message in the stream
-                    // jobmsg  e.g. y 80 x 50 spy 90 spx 60 sdx -1 (left) 
+                    // job_msg  e.g. y 80 x 50 spy 90 spx 60 sdx -1 (left) 
                     // also add all of this in a job struct to be associated with the drone obj 
 
                     char stream_n[8]; //stream number associated with the drone
@@ -233,19 +244,49 @@ void ControlCenter::tick(int t) {
             }
 
 
-            // wait drone statuses for logs bloccante  (this is for the monitor so it can be blocking)
-            reply = read_stream(this->c, log_stream);
-            assertReplyType(this->c, reply, REDIS_REPLY_ARRAY);
-
-            //update drones, these info will be used to verify requirements
+            
             break;
         default:
             //no status 
             break;
     }
 }
+
+void ControlCenter::log() {
+    // wait drone statuses for logs bloccante  (this is for the monitor so it can be blocking)
+    
+    reply = read_stream(this->c, log_stream);
+    assertReplyType(this->c, reply, REDIS_REPLY_ARRAY);
+
+    
+    //update drones, these info will be used to verify requirements
+
+    // log monitors to db
+}
+
+// clean up resources by deleting streams and free the context
 void ControlCenter::shutdown() {
+    redisReply *reply;
+    char stream_n[8]; //stream number associated with the drone
+    for(int i=0; i<DRONES_COUNT; i++) {
+        itoa(i,stream_n, 10);
+        reply = RedisCommand(c, "DEL %s", stream_n);
+        assertReply(c, reply);
+        freeReplyObject(reply);
+    }
+
+    reply = redisCommand(c, "DEL %s", drone_stream);
+    assertReply(c,reply);
+    freeReplyObject(reply);
+    
+    reply = redisCommand(c, "DEL %s", sync_stream);
+    assertReply(c,reply);
+    freeReplyObject(reply);
+
     redisFree(this-> c);
+
+
+    // free postgresql conn
 }
 void ControlCenter::sendInstructions() {
     // Implementazione dell'invio di istruzioni ai droni
