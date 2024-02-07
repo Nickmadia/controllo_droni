@@ -10,6 +10,13 @@ redisReply* ControlCenter::read_stream(redisContext *c, const char *stream_name)
     assertReply(c,reply);
     return reply;
 }
+
+redisReply* ControlCenter::read_1msg(redisContext *c, const char *stream_name) {
+
+    redisReply *reply = (redisReply *)redisCommand(c, "XREAD COUNT 1 STREAMS %s ", stream_name);
+    assertReply(c,reply);
+    return reply;
+}
 void ControlCenter::addDrone(Drone drone) {
     // Aggiunge un drone al centro di controllo
     drones.push_back(drone);
@@ -84,6 +91,17 @@ void ControlCenter::await_sync() {
     //TODO check wheter the reply contains the sync msg
     freeReplyObject(reply);
     // we could send the time t in the stream or get it calculated from the drones
+}
+
+void ControlCenter::handle_msg(const char * type, redisReply reply) {
+    switch(type) {
+        case "low_battery":
+            break;
+        case "charging":
+            break;
+        case "recharged":
+            break;
+    }
 }
 
 void ControlCenter::tick(int t) {
@@ -192,17 +210,28 @@ void ControlCenter::tick(int t) {
             // once the cc is up and running, it only recevices msgs and responds accordingly to each one
             
             //read all msgs in the stream at time t
-            redisReply *reply = read_stream(this->c, drone_stream);
-            assertReplyType(this->c, reply, REDIS_REPLY_ARRAY);
+            redisReply *reply ;
 
-            int msgs_count = ReadStreamNumMsg(reply, 0);
             char msg_type[50];
-            for( int i =0 ; i< msgs_count; i++) {
-                ReadStreamMsgVal(reply, 0, i, 1, msg) ;// reading 1 == msg type
-                handle_msg(msg_type, reply); // function that handles msgs according to msg type
+
+            for( int i =0 ; i< DRONES_COUNT; i++) {
+
+                char stream_n[8]; //stream number associated with the drone
+                itoa(i,stream_n, 10);
+
+                reply = read_1msg(this->c, stream_n );
+
+                assertReplyType(this->c, reply, REDIS_REPLY_ARRAY);
+                if (reply-> elements ==0) {
+                    freeReplyObject(reply);
+                    continue;
+                }
+                ReadStreamMsgVal(reply, 0, 0, 1, msg_type) ;// reading 1 == msg type
+
+                handle_msg(msg_type, reply ); // function that handles msgs according to msg type
+                freeReplyObject(reply);
             }
 
-            freeReplyObject(reply);
 
             // wait drone statuses for logs bloccante  (this is for the monitor so it can be blocking)
             reply = read_stream(this->c, log_stream);
@@ -214,6 +243,9 @@ void ControlCenter::tick(int t) {
             //no status 
             break;
     }
+}
+void ControlCenter::shutdown() {
+    redisFree(this-> c);
 }
 void ControlCenter::sendInstructions() {
     // Implementazione dell'invio di istruzioni ai droni

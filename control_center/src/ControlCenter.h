@@ -14,6 +14,7 @@ enum drone_status{
 
 class Drone {
 private:
+    int id;
     float x; // Coordinata x del drone
     float y; // Coordinata y del drone
     float battery; // Livello della batteria del drone
@@ -21,11 +22,12 @@ private:
 
 public:
     // Costruttore
-    Drone(int initialX, int initialY, float initialBattery, Status initialStatus) {
-        x = initialX;
-        y = initialY;
-        battery = initialBattery;
-        status = initialStatus;
+    Drone( int did) {
+        this->id = did;
+        x = 3000;
+        y = 3000;
+        battery = 100;
+        status = STARTUP;
     }
 };
 enum Status {

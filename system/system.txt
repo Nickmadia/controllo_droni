@@ -74,7 +74,7 @@ system:
                     else niente
                 }
 
-                
+
             }
 
             send drone status
@@ -84,7 +84,8 @@ monitor:
     analizza db logs per verificare if i requisiti sono soddisfatti
     req. funz:
         I. ogni punto deve esifre verficato almeno ogni 5 min 
-        II. I droni non si devono mai scaricare in volo ( almeno tot batteria per tornare a ricaricarsi)
+        II. I droni non si devono mai scaricare in volo ( almeno tot batteria per tornare a ricaricarsi) 
+            assert(battery > 0)
         III. l area deve esifre verificata in tempo t 
 
     req non funz.
