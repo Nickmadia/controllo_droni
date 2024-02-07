@@ -2,8 +2,7 @@
 #define CONTROL_CENTER_H
 #include <vector>
 #include <time.h>
-#define WIDTH 600 //since we want points 10m apart
-#define HEIGHT 600
+
 
 enum drone_status{
     STARTUP,
