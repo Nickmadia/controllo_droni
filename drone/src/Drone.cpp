@@ -53,7 +53,7 @@ void Drone::calc_velocity(int destx, int desty) {
     vely = speed * unit_dy;
 }
 void Drone::move() {
-    switch(this->status) {
+    switch(this->f_status) {
         case FLYING:
             this->calc_velocity(job.nx, job.ny); 
             this->x += velx;
@@ -61,14 +61,14 @@ void Drone::move() {
 
             // fix the cast or the drone will stop sooner e.g. 14.9 gets cut to 14
             if ((int)x == job.nx && (int)y == job.ny) {
-                this->status = LAWN_MOWNER;
+                this->f_status = LAWN_MOWNER;
                 job.nx += job.dx;
             }
             break;
         case LAWN_MOWNER:
             this->x += speed * job.dx;
             this-> y += speed * job.dy;
-
+            //need to finish
             if((int)x == job.nx && (int)y == job.ny) {
 
             }
@@ -127,6 +127,10 @@ void Drone::tick(redisContext *c) {
 
 
 
+            break;
+
+        case LAWN_MOWNER:
+            //actually same as flying maybe create flying status
             break;
         case WAIT_NEXT_DRONE:
             this->move(); 
