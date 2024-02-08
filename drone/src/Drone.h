@@ -11,9 +11,10 @@ typedef struct {
 enum drone_status{
     STARTUP,
     IDLE,
-    FLYING,
-    WAIT_NEXT_DRONE,
-    HOMING,
+    FLYING,//arrive at start pos
+    LAWN_MOWNER, //doing lawn mowner
+    WAIT_NEXT_DRONE, // flying to the last pos while other drone arrives
+    HOMING, //going home
     CHARGING
 };
 class Drone {
@@ -29,6 +30,7 @@ private:
     int lastx;
     int lasty; // only when waiting other drone
     drone_status status;
+    float speed; //gets calculated based on how long is time t
     const MAX_DISTANCE = 15000; // max distance in meters the drone can move with it's autonomy of 30 min
     // the drone can never be at distance autonomy left 'd' away from its distance from the center 'c'.  if d>=c then the drone needs to go back to charge
 

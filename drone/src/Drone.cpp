@@ -36,6 +36,47 @@ void Swarm::init() {
         exit(1);
     }
 }
+void Drone::calc_velocity(int destx, int desty) {
+
+    // Normalize the direction vector
+    float diffX = destx - x;
+    float diffY = desty - y;
+    
+
+    // Normalize the differences to obtain unit vectors
+    double length = sqrt(diffX * diffX + diffY * diffY); // Length of the vector
+    double unitX = diffX / length;
+    double unitY = diffY / length;
+
+    // Calculate velocity components
+    velx = speed * unit_dx;
+    vely = speed * unit_dy;
+}
+void Drone::move() {
+    switch(this->status) {
+        case FLYING:
+            this->calc_velocity(job.nx, job.ny); 
+            this->x += velx;
+            this->y += vely;
+
+            if ((int)x == job.nx && (int)y == job.ny) {
+                this->status = LAWN_MOWNER;
+                job.nx += job.dx;
+            }
+            break;
+        case LAWN_MOWNER:
+            this->x += speed * job.dx;
+
+            if((int)x == job.nx && (int)y == job.ny) {
+
+            }
+            break;
+        case WAIT_NEXT_DRONE:
+            break;
+        case HOMING:
+            break;  
+    }
+}
 void Drone::tick(redisContext *c) {
     switch(this->status) {
         case STARTUP:
@@ -54,8 +95,8 @@ void Drone::tick(redisContext *c) {
             redisReply *reply;
             
             char buf[8];
-            int_to_string(this->id, buf) ;
-            reply = read_1msg(c, buf);
+            int_to_string(this->id, buf) ;//TODO lib remember to add
+            reply = read_1msg(c, buf); //TODO func from lib, remember to add it
             assertReplyType(this->c, reply, REDIS_REPLY_ARRAY);
             if (reply-> elements ==0) {
                 freeReplyObject(reply);
@@ -122,16 +163,8 @@ void Drone::tick(redisContext *c) {
             break;
     }
 }
-
-void Drone::chargeDrone() {
-    // Implementazione della ricarica del drone
-    // ...
+void Swarm::tick() { //performs tick for all drones
+    for(int i=0; i < DRONES_COUNT; i++ ) {
+        drones[i].tick();
+    }
 }
-
-void Drone::move() {
-    // Implementazione del movimento del drone
-    // ...
-}
-
-// Altri metodi della classe Drone
-// ...
