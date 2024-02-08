@@ -1,15 +1,30 @@
 #ifndef DRONE_H
 #define DRONE_H
+typedef struct {
+    int sax; //subarea x 
+    int say; //subarea y
+    int ny;  // next point of the subarea to start
+    int nx;  //
+    int dx;  // direction x
+} Job;
 
+enum drone_status{
+    STARTUP,
+    IDLE,
+    FLYING,
+    HOMING,
+    CHARGING
+};
 class Drone {
 private:
     // Attributi privati della classe Drone
     int drone_id; // Identificativo unico del drone
-    float current_speed;
-    float battery_level; // Livello della batteria
-    bool is_charging; 
+    Job * job;
+    float battery;// Livello della batteria
     float x;
     float y;
+    float velx;
+    float vely;
     const MAX_DISTANCE = 15000; // max distance in meters the drone can move with it's autonomy of 30 min
     // the drone can never be at distance autonomy left 'd' away from its distance from the center 'c'.  if d>=c then the drone needs to go back to charge
 

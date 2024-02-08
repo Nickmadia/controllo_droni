@@ -2,7 +2,13 @@
 #define CONTROL_CENTER_H
 #include <vector>
 #include <time.h>
-
+typedef struct {
+    int sax; //subarea x 
+    int say; //subarea y
+    int ny;  // next point of the subarea to start
+    int nx;  //
+    int dx;  // direction x
+} Job;
 
 enum drone_status{
     STARTUP,
@@ -12,12 +18,14 @@ enum drone_status{
     CHARGING
 };
 
+
 class Drone {
 private:
     int id;
     float x; // Coordinata x del drone
     float y; // Coordinata y del drone
     float battery; // Livello della batteria del drone
+    Job * job;
     drone_status status; // Stato del drone
 
 public:
@@ -60,7 +68,6 @@ public:
     // sub areas must be of a max of 250 points - or if sqrt(250) = l, lxl -1 // 
     void check_area(); // checks whether a point has been verified in the last 5 min, if not logs functional requisite has been violeted - checks every point on the grid 
     bool is_verified(); // checks single point
-    void run(); //main function, it has the loop on every drone at every istant of time t
 
 
 
