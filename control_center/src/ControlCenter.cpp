@@ -6,14 +6,14 @@ ControlCenter::ControlCenter() {/* Costruttore */}
 void int_to_string(int x, char * buf ) {
     itoa(x,buf, 10); // convert int to str
 }
-
+//TODO add it to the lib
 redisReply* ControlCenter::read_stream(redisContext *c, const char *stream_name) {
     // Read from the stream starting from the beginning
     redisReply *reply = (redisReply *)redisCommand(c, "XREAD STREAMS %s 0", stream_name);
     assertReply(c,reply);
     return reply;
 }
-
+//TODO add it to the lib
 redisReply* ControlCenter::read_1msg(redisContext *c, const char *stream_name) {
 
     redisReply *reply = (redisReply *)redisCommand(c, "XREAD COUNT 1 STREAMS %s ", stream_name);
@@ -96,7 +96,8 @@ void ControlCenter::await_sync() {
     // we could send the time t in the stream or get it calculated from the drones
 }
 void get_job_msg(const job *my_job, char *buffer ) {
-    snprintf(buffer, buffer_size, "sax %d say %d ny %d nx %d dx %d", 
+    //TODO remove hardcoded 50
+    snprintf(buffer, 50, "sax %d say %d ny %d nx %d dx %d", 
              my_job->sax, my_job->say, my_job->ny, my_job->nx, my_job->dx);
 }
 Job * create_job(int sax, int say, int ny, int nx, int dx) {

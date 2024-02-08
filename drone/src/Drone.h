@@ -12,23 +12,27 @@ enum drone_status{
     STARTUP,
     IDLE,
     FLYING,
+    WAIT_NEXT_DRONE,
     HOMING,
     CHARGING
 };
 class Drone {
 private:
     // Attributi privati della classe Drone
-    int drone_id; // Identificativo unico del drone
+    int id; // Identificativo unico del drone
     Job * job;
     float battery;// Livello della batteria
     float x;
     float y;
     float velx;
     float vely;
+    int lastx;
+    int lasty; // only when waiting other drone
+    drone_status status;
     const MAX_DISTANCE = 15000; // max distance in meters the drone can move with it's autonomy of 30 min
     // the drone can never be at distance autonomy left 'd' away from its distance from the center 'c'.  if d>=c then the drone needs to go back to charge
 
-Public:
+public:
     // Costruttore e metodi pubblici della classe Drone
     Drone(int id);
     void update();
@@ -41,5 +45,22 @@ Public:
 
     // ...
 };
+class Swarm {
+    private:
+        std::vector<Drone> drones;
+        int pid;
+        redisContext * c; 
+        const char * sync_stream = "sync_stream";
+        const char * drone_stream = "drone_stream";
+        const char * log_stream = "log_stream";
 
+        int block_time = 10000000; //timeout redis msgs
+    public:
+        void init();
+        void init_drones(); // initializes the drones
+        void await_sync(); //sync time w/ redis
+        void tick(); // time tick
+        void send_logs(); // logs
+        void shutdown();// close connections
+}
 #endif // DRONE_H
