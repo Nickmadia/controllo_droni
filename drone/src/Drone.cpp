@@ -59,6 +59,7 @@ void Drone::move() {
             this->x += velx;
             this->y += vely;
 
+            // fix the cast or the drone will stop sooner e.g. 14.9 gets cut to 14
             if ((int)x == job.nx && (int)y == job.ny) {
                 this->status = LAWN_MOWNER;
                 job.nx += job.dx;
@@ -66,6 +67,7 @@ void Drone::move() {
             break;
         case LAWN_MOWNER:
             this->x += speed * job.dx;
+            this-> y += speed * job.dy;
 
             if((int)x == job.nx && (int)y == job.ny) {
 

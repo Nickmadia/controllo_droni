@@ -6,6 +6,8 @@ typedef struct {
     int ny;  // next point of the subarea to start
     int nx;  //
     int dx;  // direction x
+    int dy; //usually 0 but changes when doing lawn mowner
+    //TODO add dy in everything
 } Job;
 
 enum drone_status{
