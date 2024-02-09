@@ -90,15 +90,15 @@ void ControlCenter::await_sync() {
     reply = (redisReply *)redisCommand(c, "XREAD BLOCK %s STREAMS %s $", block_time, sync_stream);
     assertReply(c, reply);
 
-    // if needed dump reply or read it, but shouldnt be necessary atm
+    // if needed, dump reply or read it, but shouldnt be necessary atm
     //TODO check wheter the reply contains the sync msg
     freeReplyObject(reply);
     // we could send the time t in the stream or get it calculated from the drones
 }
 void get_job_msg(const job *my_job, char *buffer ) {
     //TODO remove hardcoded 50
-    snprintf(buffer, 50, "sax %d say %d ny %d nx %d dx %d", 
-             my_job->sax, my_job->say, my_job->ny, my_job->nx, my_job->dx);
+    snprintf(buffer, 50, "sax %d say %d ny %d nx %d dx %d dy %d", 
+             my_job->sax, my_job->say, my_job->ny, my_job->nx, my_job->dx, my_job->dy);
 }
 Job * create_job(int sax, int say, int ny, int nx, int dx) {
     Job* new_job = (job*)malloc(sizeof(job));
@@ -112,22 +112,27 @@ Job * create_job(int sax, int say, int ny, int nx, int dx) {
             new_job->ny = say;
             new_job->nx = sax;
             new_job->dx = 1;
+            new_job->dy = 1;
         } else if (sax < 3000 && say > 3000) {
 
             new_job->ny = say ;
             new_job->nx = sax + subareaside -1;
             new_job->dx = -1;
+            new_job->dy = 1;
         
         } else if (sax < 3000 && say < 3000) {
 
             new_job->ny = say + subareaside -1; //size of subarea
             new_job->nx = sax + subareaside -1;
             new_job->dx = -1;
+            
+            new_job->dy = -1;
         } else {
 
             new_job->ny = say + subareaside -1; //size of subarea
             new_job->nx = sax ;
             new_job->dx = 1;
+            new_job->dy = -1;
         }
     }
 
@@ -148,7 +153,7 @@ void ControlCenter::handle_msg(const char * type, redisReply *reply, int id) {
     }
     switch(msg_type) {
         case 0:
-        //low_battery msgtype e.g. type low_battery did 123 cy 0 cx 0 nexty 40 next x 65 dirx -1
+        //low_battery msgtype e.g. type low_battery did 123 cy 0 cx 0 nexty 40 nextx 65 dirx -1
         char say [4];
         char sax [4];
         char ny [4];
@@ -279,7 +284,7 @@ void ControlCenter::tick(int t) {
                     // job_msg  e.g. y 80 x 50 spy 90 spx 60 sdx -1 (left) 
                     // also add all of this in a job struct to be associated with the drone obj 
 
-                    int_to_string(i*SUB_AREAS_Y + j, stream_n );
+                    int_to_string(i*SUB_AREAS_W + j * 10 *20 -1, stream_n );
 
                     Job *job = create_job(i,j,-1,-1,-1); // returns a job struct using the subarea coord. use -1 for default
 

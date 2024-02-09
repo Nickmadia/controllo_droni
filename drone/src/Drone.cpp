@@ -39,44 +39,84 @@ void Swarm::init() {
 void Drone::calc_velocity(int destx, int desty) {
 
     // Normalize the direction vector
-    float diffX = destx - x;
-    float diffY = desty - y;
+    double diffX = destx - x;
+    double diffY = desty - y;
     
 
     // Normalize the differences to obtain unit vectors
     double length = sqrt(diffX * diffX + diffY * diffY); // Length of the vector
+
+    double max_speed = (speed >= length)? length : speed;
+
     double unitX = diffX / length;
     double unitY = diffY / length;
 
     // Calculate velocity components
-    velx = speed * unit_dx;
-    vely = speed * unit_dy;
+    velx = max_speed * unit_dx;
+    vely = max_speed * unit_dy;
+}
+void reset_job(Job * job) {
+    int subareaside = 20*10;
+        if (job->sax > 3000 && job->say > 3000) {
+            job->ny = job->say;
+            job->nx = job->sax;
+            job->dx = 1;
+            job->dy = 1;
+        } else if (sax < 3000 && say > 3000) {
+
+            job->ny = job->say ;
+            job->nx = job->sax + subareaside -1;
+            job->dx = -1;
+            job->dy = 1;
+        
+        } else if (sax < 3000 && say < 3000) {
+
+            job->ny = job->say + subareaside -1; //size of subarea
+            job->nx = job->sax + subareaside -1;
+            job->dx = -1;
+            
+            job->dy = -1;
+        } else {
+
+            job->ny = job->say + subareaside -1; //size of subarea
+            job->nx = job->sax ;
+            job->dx = 1;
+            job->dy = -1;
+        }
 }
 void Drone::move() {
     switch(this->f_status) {
-        case FLYING:
-            this->calc_velocity(job.nx, job.ny); 
-            this->x += velx;
-            this->y += vely;
+        case FLYING: 
+        case HOMING:
+            this->calc_velocity(job->nx, job->ny); 
 
-            // fix the cast or the drone will stop sooner e.g. 14.9 gets cut to 14
-            if ((int)x == job.nx && (int)y == job.ny) {
+            if (x == job->nx && y == job->ny ) {
                 this->f_status = LAWN_MOWNER;
-                job.nx += job.dx;
             }
             break;
         case LAWN_MOWNER:
-            this->x += speed * job.dx;
-            this-> y += speed * job.dy;
-            //need to finish
-            if((int)x == job.nx && (int)y == job.ny) {
+        case WAIT_NEXT_DRONE:
+            if (job->dx == -1) {
+                double m_speed = (speed >= x - job->sax )? (x-job->sax) : speed;
+                this->x += m_speed * job.dx;
+            } else {
+                double m_speed = (speed >= job->sax +200  - x)? (job->sax +200 -x) : speed;
+                this->x += m_speed * job.dx;
+            }
+             
+            if(x == job->sax || x == job->sax + 200) {
+                job->ny += job->dy * 20;
+                job->dx = -job->dx;
+                if(job->ny <= job->say || job->ny >= job->say +200) {
+                    this->f_status = FLYING;
+                    reset_job(this->job);
+                }
+                break;
 
             }
+
+            //check if hits bound
             break;
-        case WAIT_NEXT_DRONE:
-            break;
-        case HOMING:
-            break;  
     }
 }
 void Drone::tick(redisContext *c) {
@@ -128,11 +168,7 @@ void Drone::tick(redisContext *c) {
 
 
             break;
-
-        case LAWN_MOWNER:
-            //actually same as flying maybe create flying status
-            break;
-        case WAIT_NEXT_DRONE:
+        case WAIT_NEXT_DRONE: //add to f status
             this->move(); 
             // vai alla pos lastx lasty
             if(this->is_done()) {
