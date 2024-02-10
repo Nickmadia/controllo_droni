@@ -34,11 +34,11 @@ private:
     float y;
     float velx;
     float vely;
-    int lastx;
-    int lasty; // only when waiting other drone
+    float last_dist; // only when waiting other drone
     drone_status status;
     flying_status f_status;
     float speed; //gets calculated based on how long is time t
+    float charge_time;
     const MAX_DISTANCE = 15000; // max distance in meters the drone can move with it's autonomy of 30 min
     // the drone can never be at distance autonomy left 'd' away from its distance from the center 'c'.  if d>=c then the drone needs to go back to charge
 

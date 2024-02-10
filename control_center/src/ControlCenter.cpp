@@ -100,12 +100,11 @@ void get_job_msg(const job *my_job, char *buffer ) {
     snprintf(buffer, 50, "sax %d say %d ny %d nx %d dx %d dy %d", 
              my_job->sax, my_job->say, my_job->ny, my_job->nx, my_job->dx, my_job->dy);
 }
-Job * create_job(int sax, int say, int ny, int nx, int dx) {
+Job * create_job(int sax, int say, int ny, int nx, int dx, int dy) {
     Job* new_job = (job*)malloc(sizeof(job));
     //TODO could be necessary to add dy
     new_job->sax = sax;
     new_job->say = say;
-    new_job->dx = dx;
     if (ny < 0|| nx < 0) {
         int subareaside = 20*10;
         if (sax > 3000 && say > 3000) {
@@ -134,8 +133,11 @@ Job * create_job(int sax, int say, int ny, int nx, int dx) {
             new_job->dx = 1;
             new_job->dy = -1;
         }
+        return new_job;
     }
 
+    new_job->dx = dx;
+    new_job->dy = dy;
     new_job->ny = ny;
     new_job->nx = nx;
 
@@ -159,14 +161,15 @@ void ControlCenter::handle_msg(const char * type, redisReply *reply, int id) {
         char ny [4];
         char nx [4];
         char dx [4];
+        char dy [4];
         //create job using next coord. and subarea coord.
         ReadStreamMsgVal(reply,0,0,5,say);
         ReadStreamMsgVal(reply,0,0,7,sax);
         ReadStreamMsgVal(reply,0,0,9,ny);
         ReadStreamMsgVal(reply,0,0,11,nx);
-        ReadStreamMsgVal(reply,0,0,13, dx)
-
-        Job *job = create_job(atoi(say),atoi(sax),atoi(ny),atoi(nx),atoi(dx));
+        ReadStreamMsgVal(reply,0,0,13, dx);
+        ReadStreamMsgVal(reply,0,0,15, dy);
+        Job *job = create_job(atoi(say),atoi(sax),atoi(ny),atoi(nx),atoi(dx), atoi(dy));
 
         int new_drone_id = get_available_drone_id(); // returns the first free drone
 
@@ -192,6 +195,7 @@ void ControlCenter::handle_msg(const char * type, redisReply *reply, int id) {
         case 1:
         //charging msgtype e.g. type charging did 123
         this->drones[id].status = CHARGING;
+
         // change is status to charging
             break;
         case 2:
