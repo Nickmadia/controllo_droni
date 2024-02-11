@@ -37,7 +37,7 @@ void Swarm::init() {
     }
 }
 Job * get_job_from_reply(redisReply *reply){
-    //low_battery msgtype e.g. type low_battery did 123 cy 0 cx 0 nexty 40 nextx 65 dirx -1
+    //low_battery msgtype e.g. type low_battery did 123 cy 0 cx 0 nexty 40 nextx 65 dirx -1 diry -1
         char say [4];
         char sax [4];
         char ny [4];
@@ -63,6 +63,9 @@ Job * get_job_from_reply(redisReply *reply){
         job->dy = atoi(dy); 
         return job;
 }
+double Drone::get_distance_control_center(){
+    return sqrt(pow(x-3000,2) + pow(y-3000,2));
+}
 void Drone::is_charged(){
     return charge_time <= 0;
 }
@@ -76,7 +79,54 @@ bool Drone::is_done() {
     return last_dist <= 0;
 }
 bool Drone::is_low_battery(){
-    return get_autonomy() <= get_distance_control_center() *2 + margin;
+    return get_autonomy() <= get_distance_control_center() *2 + margin;//TODO implement get_dist
+}
+void Drone::set_last_dist() {
+    last_dist = get_distance_control_center();
+}
+void get_job_msg( int sax,int say, int ny, int nx, int dx, int dy, char *buffer, const char * type ,int id) {
+    //TODO remove hardcoded 50
+    snprintf(buffer, 50, "type %s did %d sax %d say %d ny %d nx %d dx %d dy %d", 
+             sax, say, ny, nx, dx, dy);
+}
+void Drone::send_replace_drone_msg() {
+    // msg e.g. type low_battery did 123 cy 20 cx 20 ny 40 nx 40 dx -1 dy -1
+    if(job->dy) { //we are on the down side of the grid
+        double d_last = (  job.say +200 - y) *200 ;
+    } else {
+        double d_last = (y - job.say);
+    }
+    if (job.dx){ //bottom right
+        d_last += (x - job.sax);
+    } else {
+        d_last += (job.sax -x);
+    }
+    double temp = last_dist -d_last;
+
+    int move_y = (temp/11) %10;
+
+    if (job->dy) {
+        int nexty = job.say + move_y *20;
+    } else {
+        int nexty = job.say +200 - move_y *20;
+    }
+
+    int move_x = (temp % 10);
+
+    int ndx = ((nexty /20)%2) ? 1:-1;
+    ndx = job.sax<=3000? ndx : -ndx;
+    if(!job->dx) {
+        int nextx = job.sax + move_x *20;
+    } else {
+        int nextx = job.sax + 200 - move_x *20;
+    }
+    char buffer[100];
+    get_job_msg(job->sax,job->say,nextx,nexty,ndx, job->dy, buffer,"low_battery",id);
+    redisReply *reply;
+    reply = (redisReply *)redisCommand(c, "XADD %s * %s", id,  buffer);//
+    assertReplyType(c, reply, REDIS_REPLY_STATUS);
+    freeReplyObject(reply);
+
 }
 void Drone::calc_velocity(int destx, int desty) {
 
@@ -127,7 +177,7 @@ void reset_job(Job * job) {
         }
 }
 void Drone::move() {
-    this-> battery_level -= 100/(1800/0.1); //TODO 
+    this-> battery_level -= 100/(1800/T); //TODO 
     switch(this->f_status) {
         case FLYING: 
             this->calc_velocity(job->nx, job->ny); 
@@ -206,6 +256,8 @@ void Drone::tick(redisContext *c) {
             if(this->is_low_battery()) {
             // calculate last poss for this drone
             // calc next poss for the next drone (should be cur_pos + d_control_cent ofc applied on the grid)
+            this->set_last_dist();
+            this->send_replace_drone()
             this->status = WAIT_NEXT_DRONE;
             this->f_status = WAIT_NEXT_DRONE;
             break;
@@ -231,6 +283,7 @@ void Drone::tick(redisContext *c) {
             if(this-> is_home()) {
                 this->status = CHARGING;
                 this-> charge_time == get_random_charge_time();
+                free(this->job);
                 break;
             }
             this-> move();

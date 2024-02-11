@@ -8,5 +8,6 @@
 #define SUB_AREAS_SIDE 10
 #define SUB_AREAS_W 30
 #define SUB_AREAS_H 30
+#define T 0.1
 #endif
 
