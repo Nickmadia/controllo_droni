@@ -78,9 +78,19 @@ void dumpReply(redisReply *r, int indent) {
     sdsfree(buffer);
 }
 
+redisReply* read_1msg(redisContext *c, const char * group, const char* consumer, int block, const char *stream_name) {
 
+    redisReply *reply = (redisReply *)redisCommand(c, "XREADGROUP GROUP %s %s COUNT 1 BLOCK %d NOACK STREAMS %s >", 
+                                    group, consumer, block, stream_name);
+    assertReply(c,reply);
+    return reply;
+}
 
-
+redisReply* send_redis_msg(redisContext *c , char * stream_name, char * message){
+    redisReply * reply = (redisReply*)redisCommand(c, "XADD %s * type %s", stream_name, message);
+    assertReply(c,reply);
+    return reply;
+}
 void initStreams(redisContext *c, const char *stream) {
     redisReply *r = RedisCommand(c, "XGROUP CREATE %s diameter $ MKSTREAM", stream);
     assertReply(c, r);

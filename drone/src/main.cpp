@@ -5,12 +5,12 @@ int main() {
     Swarm swarm = Swarm();
     swarm.init();
     swarm.init_drones(DRONES_COUNT);
-
     int t = 0;
+    
+    swarm.await_sync(); 
     while(t<=HORIZON) {
-        swarm.await_sync(); 
         swarm.tick();
-        swarm.log();
+        //swarm.log();
         t++;
     }
 

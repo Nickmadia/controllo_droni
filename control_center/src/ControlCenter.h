@@ -22,9 +22,9 @@ enum drone_status{
 class Drone {
 private:
     int id;
-    float x; // Coordinata x del drone
-    float y; // Coordinata y del drone
-    float battery; // Livello della batteria del drone
+    double x; // Coordinata x del drone
+    double y; // Coordinata y del drone
+    double battery; // Livello della batteria del drone
     Job * job;
     drone_status status; // Stato del drone
 

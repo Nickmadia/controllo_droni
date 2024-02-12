@@ -7,19 +7,13 @@ void int_to_string(int x, char * buf ) {
     itoa(x,buf, 10); // convert int to str
 }
 //TODO add it to the lib
-redisReply* ControlCenter::read_stream(redisContext *c, const char *stream_name) {
+redisReply* read_stream(redisContext *c, const char *stream_name) {
     // Read from the stream starting from the beginning
     redisReply *reply = (redisReply *)redisCommand(c, "XREAD STREAMS %s 0", stream_name);
     assertReply(c,reply);
     return reply;
 }
-//TODO add it to the lib
-redisReply* ControlCenter::read_1msg(redisContext *c, const char *stream_name) {
 
-    redisReply *reply = (redisReply *)redisCommand(c, "XREAD COUNT 1 STREAMS %s ", stream_name);
-    assertReply(c,reply);
-    return reply;
-}
 void ControlCenter::addDrone(Drone drone) {
     // Aggiunge un drone al centro di controllo
     drones.push_back(drone);
@@ -370,6 +364,7 @@ void ControlCenter::shutdown() {
         reply = RedisCommand(c, "DEL %s", stream_n);
         assertReply(c, reply);
         freeReplyObject(reply);
+        free(drones[i].job);
     }
 
     reply = redisCommand(c, "DEL %s", drone_stream);
