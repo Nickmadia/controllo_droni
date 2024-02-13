@@ -24,7 +24,6 @@ typedef struct {
 } Job;
 double get_random_charge_time();
 void reset_job(Job * job);
-void get_job_msg(int sax,int say, int ny, int nx, int dx, int dy, char *buffer, const char * type ,int id);
 Job * get_job_from_reply(redisReply * reply);
 enum flying_status {
     FLYING_F,

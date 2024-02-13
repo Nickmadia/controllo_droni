@@ -78,7 +78,14 @@ void dumpReply(redisReply *r, int indent) {
     sdsfree(buffer);
 }
 
-redisReply* read_1msg(redisContext *c, const char * group, const char* consumer, int block, const char *stream_name) {
+redisReply* read_1msg(redisContext *c, const char * group, const char* consumer, const char *stream_name) {
+
+    redisReply *reply = (redisReply *)redisCommand(c, "XREADGROUP GROUP %s %s COUNT 1 NOACK STREAMS %s >", 
+                                    group, consumer, stream_name);
+    assertReply(c,reply);
+    return reply;
+}
+redisReply* read_1msg_blocking(redisContext *c, const char * group, const char* consumer, int block, const char *stream_name) {
 
     redisReply *reply = (redisReply *)redisCommand(c, "XREADGROUP GROUP %s %s COUNT 1 BLOCK %d NOACK STREAMS %s >", 
                                     group, consumer, block, stream_name);

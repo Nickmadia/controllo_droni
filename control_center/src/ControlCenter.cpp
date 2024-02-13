@@ -1,10 +1,15 @@
 #include "ControlCenter.h"
 #include <vector>
-
+void ControlCenter::print_status() {
+    printf("status : %d\n",status);
+}
+void print_parameters() {
+    printf("Horizon : %d\nDrones count: %d\n", HORIZON,DRONES_COUNT);
+}
 // Implementazione dei metodi della classe ControlCenter
 ControlCenter::ControlCenter() {/* Costruttore */}
-void int_to_string(int x, char * buf ) {
-    itoa(x,buf, 10); // convert int to str
+const char * int_to_string(int x) {
+    return std::to_string(x).c_str();
 }
 //TODO add it to the lib
 redisReply* read_stream(redisContext *c, const char *stream_name) {
@@ -25,6 +30,7 @@ void ControlCenter::init() {
 
     const char *hostname = "127.0.0.1";
     int port = 6379;
+    status = STARTUP;
     this->c = redisConnect(hostname,port);
     if (c == NULL || c->err) {
         if (c) {
@@ -38,37 +44,34 @@ void ControlCenter::init() {
 
     //set up sync streams
     redisReply *reply;
-    reply = (redisReply *)redisCommand(c, "EXISTS %s", sync_stream);
+    reply = (redisReply *)redisCommand(c, "DEL %s", sync_stream);
     assertReplyType(c, reply, REDIS_REPLY_INTEGER);
-    if ( !reply->integer ) {
         initStreams(c, sync_stream);
-    }
     freeReplyObject(reply);
 
     //set up stream for receiving from drone
-    reply = (redisReply *)redisCommand(c, "EXISTS %s", drone_stream);
+    reply = (redisReply *)redisCommand(c, "DEL %s", drone_stream);
     assertReplyType(c, reply, REDIS_REPLY_INTEGER);
-    if (! reply-> integer) {
         initStreams(c , drone_stream);
-    }
     freeReplyObject(reply);
     
 
     //set up streams to send to a single drone create one stream for each drone
-    char str[8];
     for (int i = 0; i< DRONES_COUNT; i++){
-    int_to_string(i, str);
-    reply = (redisReply *)redisCommand(c, "EXISTS %s", str );
+    const char *str = int_to_string(i);
+    reply = (redisReply *)redisCommand(c, "DEL %s", str );
     assertReplyType(c, reply, REDIS_REPLY_INTEGER);
-    if (! reply-> integer) {
         initStreams(c , str);
-    }
     freeReplyObject(reply);
     }
 
 
 }
-
+int ControlCenter::get_available_drone_id(){
+    auto is_available = [](Drone & drone){return drone.status == IDLE_D;};
+    auto drone = std::find_if(drones.begin(),drones.end(), is_available);
+    return drone->id;
+}
 void ControlCenter::await_sync() {
     redisReply *reply;
 
@@ -76,26 +79,32 @@ void ControlCenter::await_sync() {
     const char *message_id = "*"; // Send to the latest message in the stream
     const char *message = "Sync";
     reply = (redisReply *)redisCommand(c, "XADD %s %s type %s", sync_stream, message_id, message);
-    assertReplyType(c, reply, REDIS_REPLY_STATUS);
+    if(DEBUG) {
+        dumpReply(reply,0);
+    }
+    assertReplyType(c, reply,REDIS_REPLY_STRING );
     //if needed log reply later
     freeReplyObject(reply);
 
     // Block to receive synchronization messages from the Redis stream
-    reply = (redisReply *)redisCommand(c, "XREAD BLOCK %s STREAMS %s $", block_time, sync_stream);
-    assertReply(c, reply);
+    if(!DEBUG) {
 
+    reply = (redisReply *)redisCommand(c, "XREAD BLOCK %d STREAMS %s $", block_time, sync_stream);
+    assertReply(c, reply);
+    dumpReply(reply,0);
     // if needed, dump reply or read it, but shouldnt be necessary atm
     //TODO check wheter the reply contains the sync msg
     freeReplyObject(reply);
+    }
     // we could send the time t in the stream or get it calculated from the drones
 }
-void get_job_msg(const job *my_job, char *buffer ) {
+void get_job_msg(Job *my_job, char *buffer ) {
     //TODO remove hardcoded 50
     snprintf(buffer, 50, "sax %d say %d ny %d nx %d dx %d dy %d", 
              my_job->sax, my_job->say, my_job->ny, my_job->nx, my_job->dx, my_job->dy);
 }
 Job * create_job(int sax, int say, int ny, int nx, int dx, int dy) {
-    Job* new_job = (job*)malloc(sizeof(job));
+    Job* new_job = (Job*)malloc(sizeof(Job));
     //TODO could be necessary to add dy
     new_job->sax = sax;
     new_job->say = say;
@@ -148,7 +157,7 @@ void ControlCenter::handle_msg(const char * type, redisReply *reply, int id) {
         msg_type = 2;
     }
     switch(msg_type) {
-        case 0:
+        case 0: {
         //low_battery msgtype e.g. type low_battery did 123 cy 0 cx 0 nexty 40 nextx 65 dirx -1
         char say [4];
         char sax [4];
@@ -167,51 +176,52 @@ void ControlCenter::handle_msg(const char * type, redisReply *reply, int id) {
 
         int new_drone_id = get_available_drone_id(); // returns the first free drone
 
-        char n_id[16];
-        int_to_string(new_drone_id,n_id);
+        const char * n_id = int_to_string(new_drone_id);
 
         freeReplyObject(reply);
         char job_msg[50];
         get_job_msg(job,job_msg);
 
         reply = (redisReply *)redisCommand(c, "XADD %s * %s", n_id,  job_msg);//job.msg() returns the formated job in a string-type in order to send it via stream
-        assertReplyType(c, reply, REDIS_REPLY_STATUS);
+        assertReplyType(c, reply, REDIS_REPLY_STRING);
 
         //chagne new drone status
         this->drones[new_drone_id].job = job;
-        this->drones[new_drone_id].status = FLYING;
+        this->drones[new_drone_id].status = FLYING_D;
         //change homing drone status
         free(this->drones[id].job );
-        this->drones[id].status = HOMING;
+        this->drones[id].status = HOMING_DREDIS_REPLY_STRING;
 
         // change lowe_battery_id status to homing
             break;
-        case 1:
+        }
+        case 1: { 
         //charging msgtype e.g. type charging did 123
-        this->drones[id].status = CHARGING;
+        this->drones[id].status = CHARGING_D;
 
         // change is status to charging
+        }
             break;
-        case 2:
-        this->drones[id].status = IDLE;
+        case 2: {
+        this->drones[id].status = IDLE_D;
         //recharged msgtype e.g. type recharged
         // change id status to IDLE
             break;
+        }
     }
 }
 
-void ControlCenter::tick(int t) {
-    switch (currentStatus) {
-        case STARTUP:
+void ControlCenter::tick() {
+    switch (status) {
+        case STARTUP: {
             //startup
-            redisReply *reply = read_stream(this->c, drone_stream);
-            assertReplyType(this->c, reply, REDIS_REPLY_ARRAY);
+            printf("startup\n");
+            redisReply *reply ;
             //redisReply *msgs = reply->element[0];// reading from only one stream so [0]
 
             // get elements as droneid, 
-            int msgs_count = ReadStreamNumMsg(reply, 0);
             char value[8];
-            for( int i =0 ; i< msgs_count; i++) {
+            for( int i =0 ; i< DRONES_COUNT; i++) {
                 //should check type remember later + format
                 // first field = type, 2nd drone_id
                 /* define msg types later as integers
@@ -219,18 +229,28 @@ void ControlCenter::tick(int t) {
 
                     */
                 // field value example should be 0 , 0
-                ReadStreamMsgVal(reply, 0, i, 3, value) ;// reading 3rd element of the msg
-                int drone_id = atoi(value);
-            // add drones to the array
-                this->addDrone(Drone(drone_id)); // constructor with just the id init drone position at start
+                if(DEBUG) {
+                    printf("drone n: %d\n",i);
+                }
+                reply = read_1msg_blocking(c,"diameter", "cc",10000, drone_stream);
+                assertReply(this->c, reply );
+                if(reply->type != REDIS_REPLY_NIL && reply->elements>0){
+                    dumpReply(reply,0);
+                    ReadStreamMsgVal(reply, 0, 0, 3, value) ;// reading 3rd element of the msg
+                    int drone_id = std::stoi(value);;
+                    // add drones to the array
+                    this->addDrone(Drone(drone_id)); // constructor with just the id init drone position at start
+
+                }
+                freeReplyObject(reply);
             }
             
-            if (this->drones_array.size() == DRONES_COUNT) {//add DRONES COUNT TO CC attr, get it from command line
-                this->currentStatus = READY;
+            if (this->drones.size() == DRONES_COUNT) {//add DRONES COUNT TO CC attr, get it from command line
+                this->status = READY;
             }
-            freeReplyObject(reply);
             break;
-        case READY:
+        }
+        case READY: {
             //ready
             // calcola aree
             /*Sub area should be verifiable in <=5 min with just 1 drone
@@ -270,40 +290,40 @@ void ControlCenter::tick(int t) {
 
             //we identify each subarea with the top-left coordinate and the side of length 10 points
 
-            char job_msg[50];
             //we consider at the start the full swarm to be charged and ready
-            char stream_n[16]; //stream number associated with the drone
             redisReply *reply;
             for (int i=0; i<SUB_AREAS_H; i++) {
                 for(int j =0; j< SUB_AREAS_W; j++) {
                     //send message to drone this->drones[i*subareasy + subareax] with coord (i,j), sp and sd
 
-                    char *message_id = "*"; // Send to the latest message in the stream
                     // job_msg  e.g. y 80 x 50 spy 90 spx 60 sdx -1 (left) 
                     // also add all of this in a job struct to be associated with the drone obj 
 
-                    int_to_string(i*SUB_AREAS_W + j * 10 *20 -1, stream_n );
+                    int did = i *SUB_AREAS_W + j;
+                    const char * stream_n = int_to_string( did  );//stream number associated with the drone
 
-                    Job *job = create_job(i,j,-1,-1,-1); // returns a job struct using the subarea coord. use -1 for default
+                    Job *job = create_job(i * 200,j * 200,-1,-1,-1,-1); // returns a job struct using the subarea coord. use -1 for default
 
-                    get_job_msg(job,job_msg);
-                    reply = (redisReply *)redisCommand(c, "XADD %s %s %s", stream_n, message_id, job_msg);//job.msg() returns the formated job in a string-type in order to send it via stream
-                    assertReplyType(c, reply, REDIS_REPLY_STATUS);
+                    reply = (redisReply *)redisCommand(c, "XADD %s * type %s did %d say %d sax %d ny %d nx %d dx %d dy %d"
+                                            , stream_n, "task", did, job->say,
+                                             job->sax, job->ny, job->nx, job->dx, job->dy );//job.msg() returns the formated job in a string-type in order to send it via stream
+                    dumpReply(reply,0);
+                    assertReplyType(c, reply, REDIS_REPLY_STRING);
 
                     freeReplyObject(reply);
                     // change drone status to running
                     this->drones[i*SUB_AREAS_H + j].job = job;
-                    this->drones[i*SUB_AREAS_H + j].status = FLYING;
+                    this->drones[i*SUB_AREAS_H + j].status = FLYING_D;
 
                 }
             }
             // assegna ogni area ad un drone
 
             //go to running
-            this->currentStatus = RUNNING;
+            this->status = RUNNING;
             break;
-
-        case RUNNING:
+        }
+        case RUNNING: {
             //running
             //read messages
 
@@ -312,29 +332,29 @@ void ControlCenter::tick(int t) {
             //read all msgs in the stream at time t
             redisReply *reply ;
 
-            char msg_type[16];
+            char msg_type[30];
 
-            char stream_n[16]; //stream number associated with the drone
             for( int i =0 ; i< DRONES_COUNT; i++) {
                 
-                int_to_string(i, stream_n);
+                const char * stream_n = int_to_string(i);
 
-                reply = read_1msg(this->c, stream_n );
+                reply = read_1msg(this->c, "diameter", "cc", stream_n );
 
-                assertReplyType(this->c, reply, REDIS_REPLY_ARRAY);
-                if (reply-> elements ==0) {
+                dumpReply(reply,0);
+                if (reply->type == REDIS_REPLY_NIL || reply-> elements ==0 ) {
                     freeReplyObject(reply);
                     continue;
                 }
                 ReadStreamMsgVal(reply, 0, 0, 1, msg_type) ;// reading 1 == msg type
 
-                handle_msg(msg_type, reply ); // function that handles msgs according to msg type
+                handle_msg(msg_type, reply , i); // function that handles msgs according to msg type
                 freeReplyObject(reply);
             }
 
 
             
             break;
+        }
         default:
             //no status 
             break;
@@ -343,7 +363,7 @@ void ControlCenter::tick(int t) {
 
 void ControlCenter::log() {
     // wait drone statuses for logs bloccante  (this is for the monitor so it can be blocking)
-
+    redisReply * reply;
     reply = read_stream(this->c, log_stream);
     assertReplyType(this->c, reply, REDIS_REPLY_ARRAY);
     //drone log e.g. did 123 y 75 x 100 battery 89 
@@ -358,20 +378,19 @@ void ControlCenter::log() {
 // clean up resources by deleting streams and free the context
 void ControlCenter::shutdown() {
     redisReply *reply;
-    char stream_n[16]; //stream number associated with the drone
     for(int i=0; i<DRONES_COUNT; i++) {
-        int_to_string(i, stream_n);
-        reply = RedisCommand(c, "DEL %s", stream_n);
+        const char * stream_n = int_to_string(i);
+        reply = (redisReply *)RedisCommand(c, "DEL %s", stream_n);
         assertReply(c, reply);
         freeReplyObject(reply);
         free(drones[i].job);
     }
 
-    reply = redisCommand(c, "DEL %s", drone_stream);
+    reply = (redisReply *)redisCommand(c, "DEL %s", drone_stream);
     assertReply(c,reply);
     freeReplyObject(reply);
     
-    reply = redisCommand(c, "DEL %s", sync_stream);
+    reply = (redisReply *)redisCommand(c, "DEL %s", sync_stream);
     assertReply(c,reply);
     freeReplyObject(reply);
 

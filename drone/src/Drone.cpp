@@ -45,7 +45,7 @@ void Swarm::await_sync() {
     // Send a synchronization message to the Redis stream
     //char *message_id = "*"; // Send to the latest message in the stream
     char *message = "sync";
-    reply = send_redis_msg(c, "sync_stream", message);
+    reply = (redisReply *) RedisCommand(c, "XADD %s * type %s", sync_stream, message);
     //reply = (redisReply *)redisCommand(c, "XADD %s %s type %s", sync_stream, message_id, message);
     if(DEBUG) {
         dumpReply(reply,0);
@@ -148,11 +148,7 @@ bool Drone::is_low_battery(){
 void Drone::set_last_dist() {
     last_dist = get_distance_control_center();
 }
-void get_job_msg( int sax,int say, int ny, int nx, int dx, int dy, char *buffer, const char * type ,int id) {
-    //TODO remove hardcoded 50
-    snprintf(buffer, 50, "type %s did %d sax %d say %d ny %d nx %d dx %d dy %d", 
-             type, id, sax, say, ny, nx, dx, dy);
-}
+
 void Drone::send_replace_drone_msg(redisContext * c) {
     // msg e.g. type low_battery did 123 cy 20 cx 20 ny 40 nx 40 dx -1 dy -1
     double d_last;
@@ -187,11 +183,10 @@ void Drone::send_replace_drone_msg(redisContext * c) {
     } else {
         nextx = job->sax + 200 - move_x *20;
     }
-    char buffer[100];
-    get_job_msg(job->sax,job->say,nextx,nexty,ndx, job->dy, buffer,"low_battery",id);
-    redisReply *reply;
-    reply = (redisReply *)redisCommand(c, "XADD %s * %s", id,  buffer);//
-    assertReplyType(c, reply, REDIS_REPLY_STATUS);
+    redisReply * reply = (redisReply *)redisCommand(c, "XADD %d * %s type %s did %d say %d sax %d ny %d nx %d dy %d dx %d"
+                                    , id, "low_battery", id, job->say, job->sax, job->ny
+                                    , job->nx, job->dy, job->dx  );//
+    assertReplyType(c, reply, REDIS_REPLY_STRING);
     freeReplyObject(reply);
 
 }
@@ -293,10 +288,9 @@ void Drone::tick(redisContext *c) {
             printf("startup\n");
             //send awake msg
             //const char *message_id = "*"; // Send to the latest message in the stream
-            char msg[50];
-            sprintf(msg,"awk did %d");
             const char * stream_name = "drone_stream";
-            reply = send_redis_msg(c, stream_name,msg);
+
+            reply = (redisReply*) RedisCommand(c, "XADD %s * type awk did %d", stream_name, id);
             dumpReply(reply,0);
             assertReplyType(c, reply, REDIS_REPLY_STRING);
 
@@ -308,9 +302,9 @@ void Drone::tick(redisContext *c) {
         case IDLE: {
             
             const char *buf = int_to_string(this->id ) ;//TODO lib remember to add
-            reply = read_1msg(c, "diameter", buf, 0, buf); //TODO func from lib, remember to add it
+            reply = read_1msg(c, "diameter", buf ,buf); 
+            assertReply(c, reply );
             dumpReply(reply,0);
-            assertReplyType(c, reply, REDIS_REPLY_ARRAY);
             if (reply-> elements ==0) {
                 if(DEBUG){
                     printf("idle: zero elements\n");

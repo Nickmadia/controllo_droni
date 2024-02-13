@@ -33,7 +33,9 @@ extern "C" {
 
 redisReply* send_redis_msg(redisContext *c , char * stream_name, char * message);
 
-redisReply* read_1msg(redisContext *c, const char * group, const char* consumer, int block, const char *stream_name); 
+redisReply* read_1msg(redisContext *c, const char * group, const char* consumer, const char *stream_name); 
+
+redisReply* read_1msg_blocking(redisContext *c, const char * group, const char* consumer, int block, const char *stream_name); 
 
 void assertReplyType(redisContext *c, redisReply *r, int type);
 
