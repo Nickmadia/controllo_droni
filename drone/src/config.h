@@ -1,14 +1,16 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define HORIZON 10000
-#define DRONES_COUNT 10 
+#define HORIZON 5540 
+#define DRONES_COUNT 30 
 #define SUB_AREAS_SIDE 10
 #define SUB_AREAS_W 30
 #define SUB_AREAS_H 30
-#define T 0.1
-#define MAX_DISTANCE 2500
-#define MARGIN 300
+#define T 3
+#define MAX_DISTANCE 15000.0
+#define MARGIN 100
 #define DEBUG 1
+#define CC_Y 100
+#define CC_X 100
 #endif
 

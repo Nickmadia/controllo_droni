@@ -29,7 +29,6 @@ void get_job_msg(const Job *my_job, char *buffer );
 Job * create_job(int sax, int say, int ny, int nx, int dx, int dy);
 
 enum drone_status{
-    STARTUP_D,
     IDLE_D,
     FLYING_D,
     HOMING_D,
@@ -50,7 +49,7 @@ public:
         x = 3000;
         y = 3000;
         battery = 100;
-        status = STARTUP_D;
+        status = IDLE_D;
     }
     int id;
     drone_status status; // Stato del drone
@@ -69,7 +68,7 @@ private:
     time_t grid[WIDTH][HEIGHT];// griglia 2d of time stamps in unix epoch, will be used to calculate verified time
     Status status; 
     redisContext *c;// redis conn
-    const char * sync_stream = "sync_stream";
+    const char * sync_stream = "sync_stream1";
     const char * drone_stream = "drone_stream";
     const char * log_stream = "log_stream";
     int block_time = 10000000; //timeout redis msgs
@@ -81,7 +80,7 @@ public:
     void init();
     void await_sync();
     void tick();
-    void handle_msg(const char * type, redisReply * reply, int id);
+    void handle_msg(const char * type, redisReply * reply);
     void log();
     void shutdown();
 

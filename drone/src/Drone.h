@@ -29,8 +29,7 @@ enum flying_status {
     FLYING_F,
     LAWN_MOWNER_F,
     WAIT_NEXT_DRONE_F,
-    HOMING_F,
-    STOP_F
+    HOMING_F
 };
 enum drone_status{
     STARTUP,
@@ -43,20 +42,20 @@ enum drone_status{
 class Drone {
 private:
     // Attributi privati della classe Drone
-    int id; // Identificativo unico del drone
-    double battery;// Livello della batteria
-    double x;
-    double y;
     double velx;
     double vely;
-    double last_dist; // only when waiting other drone
-    drone_status status;
-    flying_status f_status;
     double speed; //gets calculated based on how long is time t
     double charge_time;
     // the drone can never be at distance autonomy left 'd' away from its distance from the center 'c'.  if d>=c then the drone needs to go back to charge
 
 public:
+    double last_dist; // only when waiting other drone
+    double x;
+    double y;
+    flying_status f_status;
+    double battery;// Livello della batteria
+    drone_status status;
+    int id; // Identificativo unico del drone
     Job * job;
     // Costruttore e metodi pubblici della classe Drone
     Drone(int id);
@@ -77,11 +76,11 @@ class Swarm {
     private:
         int pid;
         redisContext * c; 
-        const char * sync_stream = "sync_stream";
+        const char * sync_stream = "sync_stream2";
         const char * drone_stream = "drone_stream";
         const char * log_stream = "log_stream";
 
-        int block_time = 10000; //timeout redis msgs
+        int block_time = 10000000; //timeout redis msgs
     public:
         std::vector<Drone> drones;
         void init();

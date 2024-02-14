@@ -10,12 +10,13 @@ redisReply* read_stream(redisContext *c, const char *stream_name) {
 }
 
 // Implementazione dei metodi della classe Drone
-Drone::Drone(int id) {
-    id = id;
+Drone::Drone(int did) {
+    id = did;
     battery = 100, 
-    x= 3000;
-    y= 3000;
-    speed = 0;
+    x= CC_X;
+    y= CC_Y;
+    f_status = FLYING_F;
+    speed = (30.0/3.6) * T;
     status = STARTUP;
  }
 void Swarm::addDrone(Drone drone) {
@@ -25,6 +26,7 @@ void Swarm::addDrone(Drone drone) {
 void Swarm::init_drones(int n) {
     for (int i =0; i<n ; i++){
         addDrone(Drone(i));
+        printf("init id :%d\n",drones[i].id);
     }
 }
 void Swarm::await_sync() {
@@ -33,10 +35,10 @@ void Swarm::await_sync() {
 
     // Block to receive synchronization messages from the Redis stream
     //reply = (redisReply *)RedisCommand(c, "XREAD COUNT 1 BLOCK %d STREAMS %s >", block_time, sync_stream);
-
-    reply = read_1msg(c, "diameter", "sync",block_time, sync_stream);
-    dumpReply(reply,0);
-
+    //read syncstream2
+    reply = read_1msg_blocking(c, "diameter", "drone",block_time, sync_stream);
+    //dumpReply(reply,0);
+    
     // if needed, dump reply or read it, but shouldnt be necessary atm
     //TODO check wheter the reply contains the sync msg
     //freeReplyObject(reply);
@@ -44,11 +46,11 @@ void Swarm::await_sync() {
 
     // Send a synchronization message to the Redis stream
     //char *message_id = "*"; // Send to the latest message in the stream
-    char *message = "sync";
-    reply = (redisReply *) RedisCommand(c, "XADD %s * type %s", sync_stream, message);
+    const char *message = "sync";
+    reply = (redisReply *) RedisCommand(c, "XADD %s * type %s", "sync_stream1", message);
     //reply = (redisReply *)redisCommand(c, "XADD %s %s type %s", sync_stream, message_id, message);
     if(DEBUG) {
-        dumpReply(reply,0);
+        //dumpReply(reply,0);
         assertReplyType(c, reply, REDIS_REPLY_STRING);
     }
     //if needed log reply later
@@ -125,7 +127,7 @@ double get_random_charge_time() {
     return randomNumber;
 }
 double Drone::get_distance_control_center(){
-    return sqrt(pow(x-3000,2) + pow(y-3000,2));
+    return sqrt(pow(x-CC_X,2) + pow(y-CC_Y,2));
 }
 bool Drone::is_charged(){
     return charge_time <= 0;
@@ -134,13 +136,13 @@ void Drone::charge(){
     charge_time -= T; 
 }
 bool Drone::is_home() {
-    return x == 3000 && y == 3000;
+    return x == CC_X && y == CC_Y;
 }
 bool Drone::is_done() {
     return last_dist <= 0;
 }
 double Drone::get_autonomy(){
-    return battery /100 * MAX_DISTANCE;
+    return battery /100.0 * MAX_DISTANCE;
 }
 bool Drone::is_low_battery(){
     return get_autonomy() <= get_distance_control_center() *2 + MARGIN;//TODO implement get_dist
@@ -153,23 +155,25 @@ void Drone::send_replace_drone_msg(redisContext * c) {
     // msg e.g. type low_battery did 123 cy 20 cx 20 ny 40 nx 40 dx -1 dy -1
     double d_last;
     if(job->dy) { //we are on the down side of the grid
-        d_last = (  job->say +200 - y) *200 ;
+        d_last = (  job->say +190 - y)/20 *180 ;
+        d_last -= job->ny -y;
     } else {
-        d_last = (y - job->say);
+        d_last = (y - job->say+10)/20 *180;
+        d_last -= y - job->ny;
     }
     if (job->dx){ //bottom right
-        d_last += (x - job->sax);
+        d_last += ( job->sax+190 - x);
     } else {
-        d_last += (job->sax -x);
+        d_last += (x - job->sax +10);
     }
     int temp = last_dist -d_last;
 
     int move_y = (temp/11) %10;
     int nexty;
     if (job->dy) {
-        nexty =(int) job->say + move_y *20;
+        nexty =(int) job->say + move_y *20 + 10;
     } else {
-        nexty =(int) job->say +200 - move_y *20;
+        nexty =(int) job->say +190 - move_y *20  ; 
     }
 
     int move_x = (temp % 10);
@@ -178,14 +182,14 @@ void Drone::send_replace_drone_msg(redisContext * c) {
     ndx = job->sax<=3000? ndx : -ndx;
 
     int nextx;
-    if(!job->dx) {
-        nextx = job->sax + move_x *20;
+    if(!ndx) {
+        nextx = job->sax + move_x *20 +10;
     } else {
-        nextx = job->sax + 200 - move_x *20;
+        nextx = job->sax + 190 - move_x *20;
     }
-    redisReply * reply = (redisReply *)redisCommand(c, "XADD %d * %s type %s did %d say %d sax %d ny %d nx %d dy %d dx %d"
-                                    , id, "low_battery", id, job->say, job->sax, job->ny
-                                    , job->nx, job->dy, job->dx  );//
+    redisReply * reply = (redisReply *)redisCommand(c, "XADD %s * type %s did %d say %d sax %d ny %d nx %d dy %d dx %d"
+                                    , "drone_stream", "low_battery", id, job->say, job->sax, nexty 
+                                    , nextx, ndx, job->dy  );//
     assertReplyType(c, reply, REDIS_REPLY_STRING);
     freeReplyObject(reply);
 
@@ -212,74 +216,80 @@ void Drone::calc_velocity(double destx, double desty) {
 void reset_job(Job * job) {
     int subareaside = 20*10;
         if (job->sax > 3000 && job->say > 3000) {
-            job->ny = job->say;
-            job->nx = job->sax;
+            job->ny = job->say + 10;
+            job->nx = job->sax+10;
             job->dx = 1;
             job->dy = 1;
         } else if (job->sax < 3000 && job->say > 3000) {
 
-            job->ny = job->say ;
-            job->nx = job->sax + subareaside -1;
+            job->ny = job->say+ 10;
+            job->nx = job->sax + subareaside -10 ;
             job->dx = -1;
             job->dy = 1;
         
         } else if (job->sax < 3000 && job->say < 3000) {
 
-            job->ny = job->say + subareaside -1; //size of subarea
-            job->nx = job->sax + subareaside -1;
+            job->ny = job->say + subareaside -10; //size of subarea
+            job->nx = job->sax + subareaside -10;
             job->dx = -1;
             
             job->dy = -1;
         } else {
 
-            job->ny = job->say + subareaside -1; //size of subarea
-            job->nx = job->sax ;
+            job->ny = job->say + subareaside -10; //size of subarea
+            job->nx = job->sax +10;
             job->dx = 1;
             job->dy = -1;
         }
 }
 void Drone::move() {
-    this-> battery -= 100/(1800/T); //TODO 
-    flying_status *next_f_status = NULL;
+    this ->battery -= (100.0/(1800.0/T)); //TODO 
+    if(status == WAIT_NEXT_DRONE) {
+                //last_dist -= m_speed;
+                last_dist -= speed;
+            }
     switch(this->f_status) {
-        case FLYING_F: 
+        case FLYING_F:{
             this->calc_velocity(job->nx, job->ny); 
+            printf("velx : %f, vely : %f\n", velx, vely);
             x += velx;
             y += vely;
             if (x == job->nx && y == job->ny ) {
-                *next_f_status = LAWN_MOWNER_F;
+                f_status = LAWN_MOWNER_F;
             }
             break;
-        case HOMING_F:
+        }
+        case HOMING_F: {
             this->calc_velocity(job->nx, job->ny); 
             x += velx;
             y += vely;
             break;
+        }
         case WAIT_NEXT_DRONE_F:
         case LAWN_MOWNER_F:
             double m_speed;
             if (job->dx == -1) {
-                m_speed = (speed >= x - job->sax )? (x-job->sax) : speed;
+                m_speed = (speed >= x - (job->sax+10) )? (x-(job->sax +10)) : speed;
                 this->x += m_speed * job->dx;
             } else {
-                m_speed = (speed >= job->sax +200  - x)? (job->sax +200 -x) : speed;
+                m_speed = (speed >= (job->sax +190)  - x)? ((job->sax +190) -x) : speed;
                 this->x += m_speed * job->dx;
             }
-            if(f_status == WAIT_NEXT_DRONE_F) {
-                last_dist -= m_speed;
-            }
-            if(x == job->sax || x == job->sax + 200) {
+            
+            if(x == job->sax + 10 || x == job->sax + 190) {
                 job->ny += job->dy * 20;
+                job->nx = x;
                 job->dx = -job->dx;
-                if(job->ny <= job->say || job->ny >= job->say +200) {
-                    *next_f_status = FLYING_F;
+                //fix sta merda
+                f_status = FLYING_F;
+                if(job->ny < job->say || job->ny > job->say +200) {
                     reset_job(this->job);
                 }
             }
+
+        break;
     }
-    if(next_f_status != NULL){
-        f_status = *next_f_status;
-    }
+    
 }
 void Drone::tick(redisContext *c) {
     redisReply *reply;
@@ -291,6 +301,7 @@ void Drone::tick(redisContext *c) {
             const char * stream_name = "drone_stream";
 
             reply = (redisReply*) RedisCommand(c, "XADD %s * type awk did %d", stream_name, id);
+            printf("awk msg: ");
             dumpReply(reply,0);
             assertReplyType(c, reply, REDIS_REPLY_STRING);
 
@@ -301,21 +312,26 @@ void Drone::tick(redisContext *c) {
         }
         case IDLE: {
             
-            const char *buf = int_to_string(this->id ) ;//TODO lib remember to add
-            reply = read_1msg(c, "diameter", buf ,buf); 
+            //const char *buf = int_to_string(id ) ;//TODO lib remember to add
+            //reply = read_1msg(c, "diameter", buf ,buf); 
+
+            printf("drone n: %d\n", id);
+            reply = (redisReply *)redisCommand(c, "XREADGROUP GROUP %s %s COUNT 1 NOACK STREAMS %d >", 
+                                    "diameter", "drones", id);
             assertReply(c, reply );
             dumpReply(reply,0);
             if (reply-> elements ==0) {
                 if(DEBUG){
-                    printf("idle: zero elements\n");
+                    printf("drone %d idle: waiting job.....\n",id);
                 }
                 freeReplyObject(reply);
                 break;
             }
 
             this->job = get_job_from_reply(reply);
-
+            printf("************job nx: %d, ny : %d, sax : %d, say : %d\n", job->nx, job->ny, job->sax, job->say);
             status = FLYING;
+            f_status = FLYING_F;
             freeReplyObject(reply);
             //wait job
             //if job go FLYING
@@ -344,8 +360,8 @@ void Drone::tick(redisContext *c) {
         }
         case WAIT_NEXT_DRONE: {//add to f status
             if(this->is_done()) {
-                this->job->nx = 3000;
-                this->job->ny = 3000;
+                this->job->nx = CC_X;
+                this->job->ny = CC_Y;
                 status = HOMING;
                 this->f_status = HOMING_F;
                 //send msg
@@ -359,6 +375,7 @@ void Drone::tick(redisContext *c) {
             if(this-> is_home()) {
                 status = CHARGING;
                 this-> charge_time = get_random_charge_time();
+                printf("charging for : %f\n",charge_time);
                 free(this->job);
                 break;
             }
@@ -374,7 +391,11 @@ void Drone::tick(redisContext *c) {
             if (this->is_charged()) {
                 status = IDLE;
                 this->battery = 100;
+                printf("drone %d FULLY CHARGED\n",id);
                 //send mesg
+                const char * stream_name = "drone_stream";
+
+                reply = (redisReply*) RedisCommand(c, "XADD %s * type recharged did %d", stream_name, id);
             }
             //if charged go idle
             // send msg
@@ -388,6 +409,9 @@ void Drone::tick(redisContext *c) {
 }
 void Swarm::tick() { //performs tick for all drones
     for(int i=0; i < DRONES_COUNT; i++ ) {
+
+        printf("+++++++++++++\ndrone : %d, status : %d, f_status : %d, battery : %f, last_dist : %f\n",drones[i].id, drones[i].status, drones[i].f_status, drones[i].battery,drones[i].last_dist);
+        printf("y : %lf, x : %lf\n",drones[i].y, drones[i].x);
         drones[i].tick(c);
     }
 }

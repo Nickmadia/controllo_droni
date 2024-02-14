@@ -49,6 +49,11 @@ void ControlCenter::init() {
         initStreams(c, sync_stream);
     freeReplyObject(reply);
 
+    reply = (redisReply *)redisCommand(c, "DEL %s", "sync_stream2");
+    assertReplyType(c, reply, REDIS_REPLY_INTEGER);
+        initStreams(c, "sync_stream2");
+    freeReplyObject(reply);
+
     //set up stream for receiving from drone
     reply = (redisReply *)redisCommand(c, "DEL %s", drone_stream);
     assertReplyType(c, reply, REDIS_REPLY_INTEGER);
@@ -59,16 +64,22 @@ void ControlCenter::init() {
     //set up streams to send to a single drone create one stream for each drone
     for (int i = 0; i< DRONES_COUNT; i++){
     const char *str = int_to_string(i);
-    reply = (redisReply *)redisCommand(c, "DEL %s", str );
+    printf("key : %s\n", str);
+    reply = (redisReply *)redisCommand(c, "DEL %d", i);
     assertReplyType(c, reply, REDIS_REPLY_INTEGER);
-        initStreams(c , str);
+    freeReplyObject(reply);
+    //initStreams(c , str);
+    reply = RedisCommand(c, "XGROUP CREATE %d diameter $ MKSTREAM", i);
+    dumpReply(reply,0);
+    assertReply(c, reply);
+
     freeReplyObject(reply);
     }
 
 
 }
 int ControlCenter::get_available_drone_id(){
-    auto is_available = [](Drone & drone){return drone.status == IDLE_D;};
+    auto is_available = [](Drone  drone){return (drone.status == IDLE_D);};
     auto drone = std::find_if(drones.begin(),drones.end(), is_available);
     return drone->id;
 }
@@ -78,7 +89,7 @@ void ControlCenter::await_sync() {
     // Send a synchronization message to the Redis stream
     const char *message_id = "*"; // Send to the latest message in the stream
     const char *message = "Sync";
-    reply = (redisReply *)redisCommand(c, "XADD %s %s type %s", sync_stream, message_id, message);
+    reply = (redisReply *)redisCommand(c, "XADD %s %s type %s", "sync_stream2", message_id, message);
     if(DEBUG) {
         dumpReply(reply,0);
     }
@@ -87,15 +98,13 @@ void ControlCenter::await_sync() {
     freeReplyObject(reply);
 
     // Block to receive synchronization messages from the Redis stream
-    if(!DEBUG) {
-
-    reply = (redisReply *)redisCommand(c, "XREAD BLOCK %d STREAMS %s $", block_time, sync_stream);
+    //read sync_stream1
+    reply = read_1msg_blocking(c, "diameter", "cc", block_time, sync_stream);
     assertReply(c, reply);
     dumpReply(reply,0);
     // if needed, dump reply or read it, but shouldnt be necessary atm
     //TODO check wheter the reply contains the sync msg
     freeReplyObject(reply);
-    }
     // we could send the time t in the stream or get it calculated from the drones
 }
 void get_job_msg(Job *my_job, char *buffer ) {
@@ -103,7 +112,7 @@ void get_job_msg(Job *my_job, char *buffer ) {
     snprintf(buffer, 50, "sax %d say %d ny %d nx %d dx %d dy %d", 
              my_job->sax, my_job->say, my_job->ny, my_job->nx, my_job->dx, my_job->dy);
 }
-Job * create_job(int sax, int say, int ny, int nx, int dx, int dy) {
+Job * create_job(int say, int sax, int ny, int nx, int dx, int dy) {
     Job* new_job = (Job*)malloc(sizeof(Job));
     //TODO could be necessary to add dy
     new_job->sax = sax;
@@ -111,28 +120,28 @@ Job * create_job(int sax, int say, int ny, int nx, int dx, int dy) {
     if (ny < 0|| nx < 0) {
         int subareaside = 20*10;
         if (sax > 3000 && say > 3000) {
-            new_job->ny = say;
-            new_job->nx = sax;
+            new_job->ny = say + 10;
+            new_job->nx = sax + 10;
             new_job->dx = 1;
             new_job->dy = 1;
         } else if (sax < 3000 && say > 3000) {
 
-            new_job->ny = say ;
-            new_job->nx = sax + subareaside -1;
+            new_job->ny = say +10;
+            new_job->nx = sax + subareaside -10 ;
             new_job->dx = -1;
             new_job->dy = 1;
         
         } else if (sax < 3000 && say < 3000) {
 
-            new_job->ny = say + subareaside -1; //size of subarea
-            new_job->nx = sax + subareaside -1;
+            new_job->ny = say + subareaside -10; //size of subarea
+            new_job->nx = sax + subareaside -  10;
             new_job->dx = -1;
             
             new_job->dy = -1;
         } else {
 
-            new_job->ny = say + subareaside -1; //size of subarea
-            new_job->nx = sax ;
+            new_job->ny = say + subareaside - 10 ; //size of subarea
+            new_job->nx = sax + 10 ;
             new_job->dx = 1;
             new_job->dy = -1;
         }
@@ -147,7 +156,7 @@ Job * create_job(int sax, int say, int ny, int nx, int dx, int dy) {
     return new_job;
 }
 
-void ControlCenter::handle_msg(const char * type, redisReply *reply, int id) {
+void ControlCenter::handle_msg(const char * type, redisReply *reply ) {
     int msg_type;
     if (strcmp(type,"low_battery") == 0) {
         msg_type = 0;
@@ -165,7 +174,9 @@ void ControlCenter::handle_msg(const char * type, redisReply *reply, int id) {
         char nx [4];
         char dx [4];
         char dy [4];
+        char did [4];
         //create job using next coord. and subarea coord.
+        ReadStreamMsgVal(reply,0,0,3,did);
         ReadStreamMsgVal(reply,0,0,5,say);
         ReadStreamMsgVal(reply,0,0,7,sax);
         ReadStreamMsgVal(reply,0,0,9,ny);
@@ -176,35 +187,41 @@ void ControlCenter::handle_msg(const char * type, redisReply *reply, int id) {
 
         int new_drone_id = get_available_drone_id(); // returns the first free drone
 
-        const char * n_id = int_to_string(new_drone_id);
 
+        printf(">>>>>>>>>sending %d drone\n",new_drone_id);
         freeReplyObject(reply);
-        char job_msg[50];
-        get_job_msg(job,job_msg);
 
-        reply = (redisReply *)redisCommand(c, "XADD %s * %s", n_id,  job_msg);//job.msg() returns the formated job in a string-type in order to send it via stream
+        //TODOTODOTODO IMPORTANT
+        reply = (redisReply *)redisCommand(c, "XADD %d * type %s did %d say %d sax %d ny %d nx %d dx %d dy %d"
+                                            , new_drone_id, "task", new_drone_id, job->say,
+                                             job->sax, job->ny, job->nx, job->dx, job->dy );//job.msg() returns the formated job in a string-type in order to send it via stream
         assertReplyType(c, reply, REDIS_REPLY_STRING);
+        dumpReply(reply,0);
 
         //chagne new drone status
         this->drones[new_drone_id].job = job;
         this->drones[new_drone_id].status = FLYING_D;
         //change homing drone status
-        free(this->drones[id].job );
-        this->drones[id].status = HOMING_DREDIS_REPLY_STRING;
+        free(this->drones[atoi(did)].job );
+        this->drones[atoi(did)].status = HOMING_D;
 
         // change lowe_battery_id status to homing
             break;
         }
         case 1: { 
         //charging msgtype e.g. type charging did 123
-        this->drones[id].status = CHARGING_D;
+        char did [4];
+        ReadStreamMsgVal(reply,0,0,3,did);
+        this->drones[atoi(did)].status = CHARGING_D;
 
         // change is status to charging
         }
             break;
         case 2: {
-        this->drones[id].status = IDLE_D;
-        //recharged msgtype e.g. type recharged
+        char did [4];
+        ReadStreamMsgVal(reply,0,0,3,did);
+        this->drones[atoi(did)].status = IDLE_D;
+        //recharged msgtype e.g. type recharged did 123
         // change id status to IDLE
             break;
         }
@@ -292,8 +309,8 @@ void ControlCenter::tick() {
 
             //we consider at the start the full swarm to be charged and ready
             redisReply *reply;
-            for (int i=0; i<SUB_AREAS_H; i++) {
-                for(int j =0; j< SUB_AREAS_W; j++) {
+            for (int i=0; i<2; i++) {
+                for(int j =0; j< 2; j++) {
                     //send message to drone this->drones[i*subareasy + subareax] with coord (i,j), sp and sd
 
                     // job_msg  e.g. y 80 x 50 spy 90 spx 60 sdx -1 (left) 
@@ -320,6 +337,7 @@ void ControlCenter::tick() {
             // assegna ogni area ad un drone
 
             //go to running
+            if(DEBUG) printf("changing to running in 3sec\n");
             this->status = RUNNING;
             break;
         }
@@ -336,9 +354,12 @@ void ControlCenter::tick() {
 
             for( int i =0 ; i< DRONES_COUNT; i++) {
                 
-                const char * stream_n = int_to_string(i);
-
-                reply = read_1msg(this->c, "diameter", "cc", stream_n );
+                //const char * stream_n = int_to_string(i);
+                printf("drone  : %d\n", i);
+               // reply = read_1msg(this->c, "diameter", "cc", *stream_n );
+                reply = (redisReply *)redisCommand(c, "XREADGROUP GROUP %s %s COUNT 1 NOACK STREAMS %s >", 
+                                    "diameter", "cc",  drone_stream);
+                assertReply(c,reply);
 
                 dumpReply(reply,0);
                 if (reply->type == REDIS_REPLY_NIL || reply-> elements ==0 ) {
@@ -347,7 +368,7 @@ void ControlCenter::tick() {
                 }
                 ReadStreamMsgVal(reply, 0, 0, 1, msg_type) ;// reading 1 == msg type
 
-                handle_msg(msg_type, reply , i); // function that handles msgs according to msg type
+                handle_msg(msg_type, reply ); // function that handles msgs according to msg type
                 freeReplyObject(reply);
             }
 

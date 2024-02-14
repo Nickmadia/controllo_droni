@@ -7,8 +7,9 @@ int main() {
     swarm.init_drones(DRONES_COUNT);
     int t = 0;
     
-    swarm.await_sync(); 
-    while(t<=HORIZON) {
+    while(t<HORIZON) {
+        printf("_____________________________\nt = %d\n\n",t);
+        swarm.await_sync(); 
         swarm.tick();
         //swarm.log();
         t++;
