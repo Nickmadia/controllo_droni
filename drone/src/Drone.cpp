@@ -18,6 +18,9 @@ Drone::Drone(int did) {
     f_status = FLYING_F;
     speed = (30.0/3.6) * T;
     status = STARTUP;
+    last_v_x = 0;
+    last_v_y = 0;
+    last_t_v = -1;
  }
 void Swarm::addDrone(Drone drone) {
     // Aggiunge un drone al centro di controllo
@@ -242,7 +245,7 @@ void reset_job(Job * job) {
             job->dy = -1;
         }
 }
-void Drone::move() {
+void Drone::move(int t) {
     this ->battery -= (100.0/(1800.0/T)); //TODO 
     if(status == WAIT_NEXT_DRONE) {
                 //last_dist -= m_speed;
@@ -256,6 +259,9 @@ void Drone::move() {
             y += vely;
             if (x == job->nx && y == job->ny ) {
                 f_status = LAWN_MOWNER_F;
+                last_v_x = x;
+                last_v_y = y;
+                last_t_v =t; // position verified at time t
             }
             break;
         }
@@ -271,9 +277,17 @@ void Drone::move() {
             if (job->dx == -1) {
                 m_speed = (speed >= x - (job->sax+10) )? (x-(job->sax +10)) : speed;
                 this->x += m_speed * job->dx;
+                if(x <= last_v_x - 20){
+                    last_v_x = last_v_x -20;
+                    last_t_v =t; // position verified at time t
+                }
             } else {
                 m_speed = (speed >= (job->sax +190)  - x)? ((job->sax +190) -x) : speed;
                 this->x += m_speed * job->dx;
+                if(x >= last_v_x + 20){
+                    last_v_x = last_v_x +20;
+                    last_t_v =t; // position verified at time t
+                }
             }
             
             if(x == job->sax + 10 || x == job->sax + 190) {
@@ -290,8 +304,9 @@ void Drone::move() {
         break;
     }
     
+    
 }
-void Drone::tick(redisContext *c) {
+void Drone::tick(redisContext *c, int t) {
     redisReply *reply;
     switch(this->status) {
         case STARTUP: {
@@ -353,7 +368,7 @@ void Drone::tick(redisContext *c) {
             break;
             }
 
-            this->move(); // if flying do smthing else if waitnext drone do another thing
+            this->move(t); // if flying do smthing else if waitnext drone do another thing
 
 
             break;
@@ -366,7 +381,7 @@ void Drone::tick(redisContext *c) {
                 this->f_status = HOMING_F;
                 //send msg
             }
-            this->move(); 
+            this->move(t); 
             // vai alla pos lastx lasty
             break;
         }
@@ -379,7 +394,7 @@ void Drone::tick(redisContext *c) {
                 free(this->job);
                 break;
             }
-            this-> move();
+            this-> move(t);
 
             // if home go charging
             // send msg
@@ -407,15 +422,25 @@ void Drone::tick(redisContext *c) {
             break;
     }
 }
-void Swarm::tick() { //performs tick for all drones
+void Swarm::tick(int t) { //performs tick for all drones
+    printf("start sending logs\n");
     for(int i=0; i < DRONES_COUNT; i++ ) {
 
         printf("+++++++++++++\ndrone : %d, status : %d, f_status : %d, battery : %f, last_dist : %f\n",drones[i].id, drones[i].status, drones[i].f_status, drones[i].battery,drones[i].last_dist);
         printf("y : %lf, x : %lf\n",drones[i].y, drones[i].x);
-        drones[i].tick(c);
+        drones[i].tick(c,t);
+    }
+    printf("finished sending logs\n");
+}
+void Swarm::log(){
+    redisReply * reply;
+    for(int i=0; i < DRONES_COUNT; i++ ) {
+        reply = (redisReply*) RedisCommand(c, "XADD %s * did %d battery %f lvy %d lvx %d tv %d status %d"
+                        , log_stream, i, drones[i].battery, drones[i].last_v_y,drones[i].last_v_x
+                        ,drones[i].last_t_v, drones[i].status );
+        assertReply(c,reply);
     }
 }
-
 void Swarm::shutdown() {
     for(int i =0; i< DRONES_COUNT; i++) {
         free(drones[i].job);

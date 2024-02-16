@@ -10,7 +10,7 @@ int main(int argc, char *argv[]) {
         cc.await_sync(); // sync bloccante con redis
         cc.print_status(); 
         cc.tick(); // performs the action in a given istant of time t based on current status
-        //cc.log(t); // logs data + monitors
+        cc.log(t); // logs data + monitors
     }
     if(DEBUG) {
         printf("finished simulation\nclosing conn...\n");

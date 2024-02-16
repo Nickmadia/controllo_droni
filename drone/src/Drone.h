@@ -49,6 +49,9 @@ private:
     // the drone can never be at distance autonomy left 'd' away from its distance from the center 'c'.  if d>=c then the drone needs to go back to charge
 
 public:
+    int last_v_x ;
+    int last_v_y;
+    int last_t_v;
     double last_dist; // only when waiting other drone
     double x;
     double y;
@@ -59,7 +62,7 @@ public:
     Job * job;
     // Costruttore e metodi pubblici della classe Drone
     Drone(int id);
-    void tick(redisContext *c);
+    void tick(redisContext *c,int t);
     double get_distance_control_center();
     bool is_charged();
     void charge();
@@ -70,7 +73,7 @@ public:
     void set_last_dist();
     void send_replace_drone_msg(redisContext * c);
     void calc_velocity(double destx, double desty);
-    void move();
+    void move(int t);
 };
 class Swarm {
     private:
@@ -87,8 +90,8 @@ class Swarm {
         void addDrone(Drone drone);
         void init_drones(int n); // initializes the drones
         void await_sync(); //sync time w/ redis
-        void tick(); // time tick
-        void send_logs(); // logs
+        void tick(int t); // time tick
+        void log(); // logs
         void shutdown();// close connections
 };
 #endif // DRONE_H

@@ -10,8 +10,8 @@ int main() {
     while(t<HORIZON) {
         printf("_____________________________\nt = %d\n\n",t);
         swarm.await_sync(); 
-        swarm.tick();
-        //swarm.log();
+        swarm.tick(t);
+        swarm.log();
         t++;
     }
 
