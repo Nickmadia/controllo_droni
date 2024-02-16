@@ -208,7 +208,6 @@ void ControlCenter::handle_msg(const char * type, redisReply *reply ) {
         // change lowe_battery_id status to homing
             break;
         }
-        case 1: { 
         //charging msgtype e.g. type charging did 123
         char did [4];
         ReadStreamMsgVal(reply,0,0,3,did);
@@ -381,13 +380,69 @@ void ControlCenter::tick() {
             break;
     }
 }
+bool ControlCenter::check_area(int curr_time){
+    for (int i = 0 ; i < HEIGHT; i++) {
+            for (int j =0 ; j < WIDTH; j++) {
+                if(!is_verified(grid[i][j], curr_time)){
+                    return false;
+                }
+            }
+    }
+    return true;
+}
 
-void ControlCenter::log() {
+bool is_verified(int last_v, int current_time){
+    return (double)(current_time -last_v)/ T <= 300.0 / T;
+}
+void ControlCenter::log(int time) {
     // wait drone statuses for logs bloccante  (this is for the monitor so it can be blocking)
     redisReply * reply;
-    reply = read_stream(this->c, log_stream);
-    assertReplyType(this->c, reply, REDIS_REPLY_ARRAY);
-    //drone log e.g. did 123 y 75 x 100 battery 89 
+
+    //drone log e.g. did 123 battery 89 lvy 30 lvx 90 tv 340 status 0
+    for(int i= 0; i<DRONES_COUNT;i++){
+        reply = read_1msg_blocking(c,"diameter","cc", 10000, log_stream) ;
+        char drone_id [4];
+        char bat [4];
+        char lvy [4];
+        char lvx [4];
+        char tv [4];
+        //create job using next coord. and subarea coord.
+        //TODO if drone idle continue
+        ReadStreamMsgVal(reply,0,0,1,drone_id);
+        ReadStreamMsgVal(reply,0,0,3,bat);
+        ReadStreamMsgVal(reply,0,0,5,lvy);
+        ReadStreamMsgVal(reply,0,0,7,lvx);
+        ReadStreamMsgVal(reply,0,0,9,tv);
+
+        int did = std::stoi(drone_id);
+
+        drones[did].battery = std::stod(bat);
+
+        // MONITOR BATTERIA
+        assert(std::stod(bat) > MIN_BATTERY);
+        drone[did].last_verified_x = std::stoi(lvx);
+        drone[did].last_verified_y = std::stoi(lvy);
+        int ltv = std::stoi(tv);
+
+        if (grid[lvy][lvx] != ltv) {
+            grid[lvy][lvx] = ltv;
+        }
+
+
+
+        // optimize
+
+    }
+
+    bool area_verified1 = area_verified; //verfica allo stato precedente
+    area_verified = check_area();
+
+    //MONITOR AREA
+    assert( area_verified1 ? area_verified: 1); // se l' area diventa verificata non deve mai smettere
+
+    // MONITOR TIME 
+    assert( MAX_VERIFY_TIME >= ) 
+    
 
     //after updating the drones array update the grid based on drone positions in the msg
     

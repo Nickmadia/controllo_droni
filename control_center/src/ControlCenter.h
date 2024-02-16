@@ -38,8 +38,10 @@ enum drone_status{
 
 class Drone {
 private:
-    double x; // Coordinata x del drone
-    double y; // Coordinata y del drone
+    int last_verified_x; // last verified pos 
+    int last_verified_y; // last verified post 
+    
+    // pos x will be t.c. (x -10) congruo 0 mod 20
     double battery; // Livello della batteria del drone
 
 public:
@@ -65,8 +67,9 @@ class ControlCenter {
 private:
     int pid;
     std::vector<Drone> drones;// vector of drones ids, make another drone class
-    time_t grid[WIDTH][HEIGHT];// griglia 2d of time stamps in unix epoch, will be used to calculate verified time
+    int grid[WIDTH][HEIGHT];// griglia 2d of time stamps in unix epoch, will be used to calculate verified time
     Status status; 
+    bool area_verified;
     redisContext *c;// redis conn
     const char * sync_stream = "sync_stream1";
     const char * drone_stream = "drone_stream";
@@ -87,10 +90,9 @@ public:
     void create_subarea(); // divides the area current(600x600) in sub_areas to be assigned to the individual drones
     void divide_tasks(); // assign the subareas to the available drones
     int get_available_drone_id();
-    bool send_instruction(int id); //sends the drone an istruction to start a task
 
     // sub areas must be of a max of 250 points - or if sqrt(250) = l, lxl -1 // 
-    void check_area(); // checks whether a point has been verified in the last 5 min, if not logs functional requisite has been violeted - checks every point on the grid 
+    bool check_area(); // checks whether a point has been verified in the last 5 min, if not logs functional requisite has been violeted - checks every point on the grid 
     bool is_verified(); // checks single point
 
 
