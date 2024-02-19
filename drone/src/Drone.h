@@ -29,7 +29,8 @@ enum flying_status {
     FLYING_F,
     LAWN_MOWNER_F,
     WAIT_NEXT_DRONE_F,
-    HOMING_F
+    HOMING_F,
+    RESTARTING
 };
 enum drone_status{
     STARTUP,

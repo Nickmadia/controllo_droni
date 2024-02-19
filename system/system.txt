@@ -90,7 +90,7 @@ monitor:
 
     req non funz.
     //     I droni devono ricaricarsi fra le 2 e le tre ore.
-    // droni max
+    //  i droni devono essere al max 10k 
             
 
             

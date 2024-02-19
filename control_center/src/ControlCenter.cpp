@@ -48,6 +48,12 @@ void ControlCenter::init() {
         }
         exit(1);
     }
+    //cleans results
+
+    std::ofstream outputFile(TEST_PATH); // Open the file for writing (overwrite mode)
+    outputFile << "verified_area,t\n"; // Write the string to the file
+    outputFile.close();
+
     //set up sync streams
     redisReply *reply;
     reply = (redisReply *)redisCommand(c, "DEL %s", sync_stream);
@@ -102,7 +108,7 @@ void ControlCenter::await_sync() {
     const char *message = "Sync";
     reply = (redisReply *)redisCommand(c, "XADD %s %s type %s", "sync_stream2", message_id, message);
     if(DEBUG) {
-        dumpReply(reply,0);
+        //dumpReply(reply,0);
     }
     assertReplyType(c, reply,REDIS_REPLY_STRING );
     //if needed log reply later
@@ -112,7 +118,7 @@ void ControlCenter::await_sync() {
     //read sync_stream1
     reply = read_1msg_blocking(c, "diameter", "cc", block_time, sync_stream);
     assertReply(c, reply);
-    dumpReply(reply,0);
+    //dumpReply(reply,0);
     // if needed, dump reply or read it, but shouldnt be necessary atm
     //TODO check wheter the reply contains the sync msg
     freeReplyObject(reply);
@@ -179,13 +185,13 @@ void ControlCenter::handle_msg(const char * type, redisReply *reply ) {
     switch(msg_type) {
         case 0: {
         //low_battery msgtype e.g. type low_battery did 123 cy 0 cx 0 nexty 40 nextx 65 dirx -1
-        char say [4];
-        char sax [4];
-        char ny [4];
-        char nx [4];
-        char dx [4];
-        char dy [4];
-        char did [4];
+        char say [8];
+        char sax [8];
+        char ny [8];
+        char nx [8];
+        char dx [8];
+        char dy [8];
+        char did [8];
         //create job using next coord. and subarea coord.
         ReadStreamMsgVal(reply,0,0,3,did);
         ReadStreamMsgVal(reply,0,0,5,say);
@@ -199,14 +205,14 @@ void ControlCenter::handle_msg(const char * type, redisReply *reply ) {
         int new_drone_id = get_available_drone_id(); // returns the first free drone
 
 
-        printf(">>>>>>>>>sending %d drone\n",new_drone_id);
+        //printf(">>>>>>>>>sending %d drone\n",new_drone_id);
         redisReply * rep;
         //TODOTODOTODO IMPORTANT
         rep = (redisReply *)redisCommand(c, "XADD %d * type %s did %d say %d sax %d ny %d nx %d dx %d dy %d"
                                             , new_drone_id, "task", new_drone_id, job->say,
                                              job->sax, job->ny, job->nx, job->dx, job->dy );//job.msg() returns the formated job in a string-type in order to send it via stream
         assertReplyType(c, rep, REDIS_REPLY_STRING);
-        dumpReply(rep,0);
+        //dumpReply(rep,0);
 
         //chagne new drone status
         this->drones[new_drone_id].job = job;
@@ -214,7 +220,6 @@ void ControlCenter::handle_msg(const char * type, redisReply *reply ) {
         //change homing drone status
         free(this->drones[std::stoi(did)].job );
         this->drones[std::stoi(did)].status = HOMING_D;
-
         // change lowe_battery_id status to homing
             break;
         }
@@ -262,7 +267,7 @@ void ControlCenter::tick() {
                 reply = read_1msg_blocking(c,"diameter", "cc",10000, drone_stream);
                 assertReply(this->c, reply );
                 if(reply->type != REDIS_REPLY_NIL && reply->elements>0){
-                    dumpReply(reply,0);
+                    //dumpReply(reply,0);
                     ReadStreamMsgVal(reply, 0, 0, 3, value) ;// reading 3rd element of the msg
                     int drone_id = std::stoi(value);;
                     // add drones to the array
@@ -319,8 +324,8 @@ void ControlCenter::tick() {
 
             //we consider at the start the full swarm to be charged and ready
             redisReply *reply;
-            for (int i=0; i<2; i++) {
-                for(int j =0; j< 2; j++) {
+            for (int i=0; i<30; i++) {
+                for(int j =0; j< 30; j++) {
                     //send message to drone this->drones[i*subareasy + subareax] with coord (i,j), sp and sd
 
                     // job_msg  e.g. y 80 x 50 spy 90 spx 60 sdx -1 (left) 
@@ -334,7 +339,7 @@ void ControlCenter::tick() {
                     reply = (redisReply *)redisCommand(c, "XADD %s * type %s did %d say %d sax %d ny %d nx %d dx %d dy %d"
                                             , stream_n, "task", did, job->say,
                                              job->sax, job->ny, job->nx, job->dx, job->dy );//job.msg() returns the formated job in a string-type in order to send it via stream
-                    dumpReply(reply,0);
+                    //dumpReply(reply,0);
                     assertReplyType(c, reply, REDIS_REPLY_STRING);
 
                     freeReplyObject(reply);
@@ -392,30 +397,75 @@ void ControlCenter::tick() {
     }
 }
 bool is_verified(int last_v, int current_time){
-    return last_v != -1 && (double)(current_time -last_v)/ T <= 300.0 / T;
+    return last_v != -1 && ((double)(current_time -last_v)/ T) <= (300.0 / T);
 }
-bool ControlCenter::check_area(int curr_time){
+
+void ControlCenter::dumpsubarea(int cur){
+    printf("err %d\n",grid[54][148]);
+    for (int i = 0 ; i < 20; i++) {
+        printf("\n" );
+        if(i%10 == 0) printf("\n");
+            for (int j =0 ; j <  20; j++) {
+                if (j % 10 == 0) printf("  ");
+                printf("%d  ", grid[i][j]);
+            }
+    }
+}
+double ControlCenter::get_percentage(int curr_time){
+    int aa = 0;
     for (int i = 0 ; i < HEIGHT; i++) {
             for (int j =0 ; j < WIDTH; j++) {
                 if(!is_verified(grid[i][j], curr_time)){
-                    return false;
+
+                    //dumpsubarea(curr_time);
+                    continue;
                 }
+                aa ++;
             }
     }
-    return true;
+    return ((double)aa/(300.0*300.0))*100.0; 
 }
+bool ControlCenter::check_area(int curr_time){
+    int aa = 0;
+    for (int i = 0 ; i < HEIGHT; i++) {
+            for (int j =0 ; j < WIDTH; j++) {
+                if(!is_verified(grid[i][j], curr_time)){
+                    
+                    //dumpsubarea(curr_time);
+                }
+                aa++;
+            }
+    }
+    return ((double)aa/(300.0*300.0))*100.0 >= 99.0; 
+}
+void save_to_csv(double va, int t , std::string filename) {
+    std::ofstream file;
+    file.open(filename, std::ios::out | std::ios::app); // Open file in append mode
 
+    if (file.is_open()) {
+        file<< va<< "," << t << "\n"; // Write data to the file
+        file.close();
+    } else {
+        std::cerr << "Error: Unable to open file " << filename << " for writing.\n";
+        exit(1);
+    }
+}
 void ControlCenter::log(int time) {
     // wait drone statuses for logs bloccante  (this is for the monitor so it can be blocking)
     if(!(status ==RUNNING)) return;
     redisReply * reply;
-
+    int a =0;
     //drone log e.g. did 123 battery 89 lvy 30 lvx 90 tv 340 status 0
     for(int i= 0; i<DRONES_COUNT;i++){
-        reply = (redisReply *)redisCommand(c, "XREADGROUP GROUP %s %s block %d COUNT 1 NOACK STREAMS %s >", 
-                                    "diameter", "cc",  10000, log_stream);
+        reply = (redisReply *)redisCommand(c, "XREADGROUP GROUP %s %s COUNT 1 NOACK STREAMS %s >", 
+                                    "diameter", "cc", log_stream);
         //dumpReply(reply,0);
-        char drone_id [4];
+        if (reply->elements == 0) {
+            freeReplyObject(reply);
+            continue;
+        }
+        a++;
+        char drone_id [8];
         char lvy [8];
         char lvx [8];
         char tv [8];
@@ -445,8 +495,8 @@ void ControlCenter::log(int time) {
         assert(drones[did].battery > MIN_BATTERY);
         int ltv = std::stoi(tv);
         
-        if (ltv != -1 &&grid[ilvy][ilvx] != ltv) {
-            printf("changing griddd  y : %d x : %d\n",ilvy,ilvx);
+        if (  grid[ilvy][ilvx] < ltv) {
+            //printf("changing griddd  y : %d x : %d\n",ilvy,ilvx);
             grid[ilvy][ilvx] = ltv; //setting last_time verified in order to check verif
             drones[did].last_verified_x = ilvx;
             drones[did].last_verified_y = ilvy;
@@ -457,29 +507,17 @@ void ControlCenter::log(int time) {
         // optimize
 
     }
-    printf("got all drones\n");
+    //printf("%d drones\n",a);
     bool area_verified1 = area_verified; //verfica allo stato precedente
     area_verified = check_area(time);
-    if(time >2000) {
-        int c = 0;
-        for (int i = 0 ; i < HEIGHT; i++) {
-            for (int j =0 ; j < WIDTH; j++) {
-                if(grid[i][j] != -1) c++;
-            }
-    }
-                printf("%d\n",c);
-    sleep(2);
-    }
-    if(area_verified ){
-        printf("VERIFIED!!\n");
-        sleep(5);
-    }
+    save_to_csv(get_percentage(time), time,TEST_PATH);
+    //dumpsubarea(time) ;
     //MONITOR AREA
     assert( area_verified1 ? area_verified: 1); // se l' area diventa verificata non deve mai smettere
 
     // MONITOR TIME 
     if(!area_verified1 && area_verified){
-        assert( MAX_VERIFY_TIME/T >= time/T); 
+        assert( MAX_VERIFY_TIME >= time*T); 
     }
     
 

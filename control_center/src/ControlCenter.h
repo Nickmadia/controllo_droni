@@ -15,7 +15,9 @@
 #include <cstring>
 #include <algorithm>
 #include <assert.h>
-
+#include <iostream>
+#include <fstream>
+void save_to_csv(bool verified_area, int t , std::string filename);
 void print_parameters();
 bool is_verified(int last_v, int current_time); // checks single point
 const char * int_to_string(int x);
@@ -80,6 +82,8 @@ private:
 
 public:
     ControlCenter();
+    double get_percentage(int curr_time);
+    void dumpsubarea(int curr);
     void init_grid();
     void print_status();
     void addDrone(Drone drone);

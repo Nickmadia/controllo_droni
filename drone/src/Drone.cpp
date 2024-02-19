@@ -96,12 +96,12 @@ void Swarm::init() {
 }
 Job * get_job_from_reply(redisReply *reply){
     //low_battery msgtype e.g. type low_battery did 123 cy 0 cx 0 nexty 40 nextx 65 dirx -1 diry -1
-        char say [4];
-        char sax [4];
-        char ny [4];
-        char nx [4];
-        char dx [4];
-        char dy [4];
+        char say [8];
+        char sax [8];
+        char ny [8];
+        char nx [8];
+        char dx [8];
+        char dy [8];
         //create job using next coord. and subarea coord.
         ReadStreamMsgVal(reply,0,0,5,say);
         ReadStreamMsgVal(reply,0,0,7,sax);
@@ -113,12 +113,12 @@ Job * get_job_from_reply(redisReply *reply){
         Job *job = (Job *)malloc(sizeof(Job));
 
         // Assign values to the members
-        job->sax = atoi(sax);
-        job->say = atoi(say);
-        job->ny = atoi(ny);
-        job->nx = atoi(nx);
-        job->dx = atoi(dx);
-        job->dy = atoi(dy); 
+        job->sax = std::stoi(sax);
+        job->say =  std::stoi(say);
+        job->ny = std::stoi(ny);
+        job->nx = std::stoi(nx);
+        job->dx = std::stoi(dx);
+        job->dy = std::stoi(dy); 
         return job;
 }
 double get_random_charge_time() {
@@ -145,10 +145,10 @@ bool Drone::is_done() {
     return last_dist <= 0;
 }
 double Drone::get_autonomy(){
-    return battery /100.0 * MAX_DISTANCE;
+    return (battery /100.0) * MAX_DISTANCE;
 }
 bool Drone::is_low_battery(){
-    return get_autonomy() <= get_distance_control_center() *2 + MARGIN;//TODO implement get_dist
+    return get_autonomy() <= (get_distance_control_center() *2) + MARGIN;//TODO implement get_dist
 }
 void Drone::set_last_dist() {
     last_dist = get_distance_control_center();
@@ -157,12 +157,21 @@ void Drone::set_last_dist() {
 void Drone::send_replace_drone_msg(redisContext * c) {
     // msg e.g. type low_battery did 123 cy 20 cx 20 ny 40 nx 40 dx -1 dy -1
     double d_last;
+    if(!(f_status == RESTARTING)){
     if(job->dy) { //we are on the down side of the grid
         d_last = (  job->say +190 - y)/20 *180 ;
-        d_last -= job->ny -y;
+        d_last -= (job->ny -y);
     } else {
         d_last = (y - job->say+10)/20 *180;
-        d_last -= y - job->ny;
+        d_last -= (y - job->ny);
+    }
+    } else {
+        if (job->dy) {
+            d_last = (job->ny -y);
+        }else {
+
+            d_last = (y - job->ny);
+        }
     }
     if (job->dx){ //bottom right
         d_last += ( job->sax+190 - x);
@@ -171,18 +180,26 @@ void Drone::send_replace_drone_msg(redisContext * c) {
     }
     int temp = last_dist -d_last;
 
-    int move_y = (temp/11) %10;
+    int move_y = (temp/11) %11;
     int nexty;
     if (job->dy) {
-        nexty =(int) job->say + move_y *20 + 10;
+        if(move_y > 9) {
+            nexty = job->say +10;
+        }else {
+            nexty =(int) job->say + move_y *20 + 10;
+        }
     } else {
-        nexty =(int) job->say +190 - move_y *20  ; 
+        if(move_y > 9) {
+            nexty = job->say +190;
+        }else {
+            nexty =(int) job->say +190 - move_y *20  ; 
+        }
     }
 
     int move_x = (temp % 10);
 
     int ndx = ((nexty /20)%2) ? 1:-1;
-    ndx = job->sax<=3000? ndx : -ndx;
+    ndx = job->sax<3000? ndx : -ndx;
 
     int nextx;
     if(!ndx) {
@@ -193,9 +210,10 @@ void Drone::send_replace_drone_msg(redisContext * c) {
     redisReply * reply = (redisReply *)redisCommand(c, "XADD %s * type %s did %d say %d sax %d ny %d nx %d dy %d dx %d"
                                     , "drone_stream", "low_battery", id, job->say, job->sax, nexty 
                                     , nextx, ndx, job->dy  );//
+    
     assertReplyType(c, reply, REDIS_REPLY_STRING);
     freeReplyObject(reply);
-
+    //last_dist += 400;
 }
 void Drone::calc_velocity(double destx, double desty) {
 
@@ -209,6 +227,11 @@ void Drone::calc_velocity(double destx, double desty) {
 
     double max_speed = (speed >= length)? length : speed;
 
+    if (length <= 0) {
+        velx = 0;
+        vely = 0;
+        return;
+    }
     double unitX = diffX / length;
     double unitY = diffY / length;
 
@@ -252,9 +275,10 @@ void Drone::move(int t) {
                 last_dist -= speed;
             }
     switch(this->f_status) {
+        case RESTARTING:
         case FLYING_F:{
             this->calc_velocity(job->nx, job->ny); 
-            printf("velx : %f, vely : %f\n", velx, vely);
+            //printf("velx : %f, vely : %f\n", velx, vely);
             x += velx;
             y += vely;
             if (x == job->nx && y == job->ny ) {
@@ -266,7 +290,7 @@ void Drone::move(int t) {
             break;
         }
         case HOMING_F: {
-            this->calc_velocity(job->nx, job->ny); 
+            this->calc_velocity(CC_X,CC_Y ); 
             x += velx;
             y += vely;
             break;
@@ -298,6 +322,8 @@ void Drone::move(int t) {
                 f_status = FLYING_F;
                 if(job->ny < job->say || job->ny > job->say +200) {
                     reset_job(this->job);
+                    if ( status != WAIT_NEXT_DRONE)
+                    f_status = RESTARTING;
                 }
             }
 
@@ -330,21 +356,18 @@ void Drone::tick(redisContext *c, int t) {
             //const char *buf = int_to_string(id ) ;//TODO lib remember to add
             //reply = read_1msg(c, "diameter", buf ,buf); 
 
-            printf("drone n: %d\n", id);
+            //printf("drone n: %d\n", id);
             reply = (redisReply *)redisCommand(c, "XREADGROUP GROUP %s %s COUNT 1 NOACK STREAMS %d >", 
                                     "diameter", "drones", id);
             assertReply(c, reply );
-            dumpReply(reply,0);
+            //dumpReply(reply,0);
             if (reply-> elements ==0) {
-                if(DEBUG){
-                    printf("drone %d idle: waiting job.....\n",id);
-                }
                 freeReplyObject(reply);
                 break;
             }
 
             this->job = get_job_from_reply(reply);
-            printf("************job nx: %d, ny : %d, sax : %d, say : %d\n", job->nx, job->ny, job->sax, job->say);
+            //printf("************job nx: %d, ny : %d, sax : %d, say : %d\n", job->nx, job->ny, job->sax, job->say);
             status = FLYING;
             f_status = FLYING_F;
             freeReplyObject(reply);
@@ -357,7 +380,8 @@ void Drone::tick(redisContext *c, int t) {
 
             // if arrived calc next using lawn mowner algo
 
-            //if current_autonomy <= d_control center x2 + 2margin (max dist the drone can get while waiting other drone while keep moving)
+            //if current_autonomy <= d_control center x2 + 2margin (max dist :w
+            //the drone can get while waiting other drone while keep moving)
             if(this->is_low_battery()) {
             // calculate last poss for this drone
             // calc next poss for the next drone (should be cur_pos + d_control_cent ofc applied on the grid)
@@ -390,7 +414,7 @@ void Drone::tick(redisContext *c, int t) {
             if(this-> is_home()) {
                 status = CHARGING;
                 this-> charge_time = get_random_charge_time();
-                printf("charging for : %f\n",charge_time);
+                //printf("charging for : %f\n",charge_time);
                 free(this->job);
                 break;
             }
@@ -405,8 +429,8 @@ void Drone::tick(redisContext *c, int t) {
             this->charge();
             if (this->is_charged()) {
                 status = IDLE;
-                this->battery = 100;
-                printf("drone %d FULLY CHARGED\n",id);
+                this->battery = 100.0;
+                //printf("drone %d FULLY CHARGED\n",id);
                 //send mesg
                 const char * stream_name = "drone_stream";
 
@@ -414,7 +438,7 @@ void Drone::tick(redisContext *c, int t) {
             }
             //if charged go idle
             // send msg
-            printf("Drone status: CHARGING\n");
+            //printf("Drone status: CHARGING\n");
             break;
         }
         default:
@@ -423,22 +447,25 @@ void Drone::tick(redisContext *c, int t) {
     }
 }
 void Swarm::tick(int t) { //performs tick for all drones
-    printf("start sending logs\n");
     for(int i=0; i < DRONES_COUNT; i++ ) {
 
-        printf("+++++++++++++\ndrone : %d, status : %d, f_status : %d, battery : %f, last_dist : %f\n",drones[i].id, drones[i].status, drones[i].f_status, drones[i].battery,drones[i].last_dist);
-        printf("y : %lf, x : %lf\n",drones[i].y, drones[i].x);
+        //    printf("+++++++++++++\ndrone : %d, x: %f , y %f, status : %d, f_status : %d, battery : %f, last_dist : %f\n",drones[i].id, drones[i].x, drones[i].y, drones[i].status, drones[i].f_status, drones[i].battery,drones[i].last_dist);
+         //   printf(">>>>> say %d, sax %d, dx %d, dy %d\nny : %d, nx %d\n",drones[i].job->say,drones[i].job->sax,drones[i].job->dx,drones[i].job->dy,drones[i].job->ny,drones[i].job->nx);
+        //printf("y : %lf, x : %lf\n",drones[i].y, drones[i].x);
         drones[i].tick(c,t);
     }
-    printf("finished sending logs\n");
 }
 void Swarm::log(){
     redisReply * reply;
     for(int i=0; i < DRONES_COUNT; i++ ) {
+        if(drones[i].status == IDLE) {
+            continue;
+        }
         reply = (redisReply*) RedisCommand(c, "XADD %s * did %d battery %f lvy %d lvx %d tv %d status %d"
                         , log_stream, i, drones[i].battery, drones[i].last_v_y,drones[i].last_v_x
                         ,drones[i].last_t_v, drones[i].status );
         assertReply(c,reply);
+        freeReplyObject(reply);
     }
 }
 void Swarm::shutdown() {
