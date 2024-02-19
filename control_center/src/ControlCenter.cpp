@@ -292,7 +292,7 @@ void ControlCenter::tick() {
               which are roughly 720 sub areas
               so we need atleast 720 drones + drones for when the battery is over
               
-              estimated drones 720 * time of charge / autonomy = 4k drones*/
+              estimated drones 720 * time of charge / autonomy = 8k drones*/
             // we ve got to keep in mind that the drones which are doing the verify need also to
             //come back to the starter position within the area before the 5 min mark
             // so the subarea must be a square of side x | x^2 + sqrt(2x^2) = 125 
