@@ -1,0 +1,18 @@
+Per runnare la simulazione occorre compilare prima il control ControlCenter
+
+Se si vogliono cambiare i parametri occorre cambiare i file config.h in entrambe le cartelle
+
+Run simulazione:
+cd ControlCenter
+make
+./bin/ControlCenter
+cd drone
+make 
+./bin/drone
+
+Plot simulazione (solo dopo aver concluso):
+cd test
+python3 plotter.py system.csv 
+
+I risultati saranno nell' immagine test/system.png
+
