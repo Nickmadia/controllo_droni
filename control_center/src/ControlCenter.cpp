@@ -98,7 +98,11 @@ void ControlCenter::init() {
 int ControlCenter::get_available_drone_id(){
     auto is_available = [](Drone  drone){return (drone.status == IDLE_D);};
     auto drone = std::find_if(drones.begin(),drones.end(), is_available);
-    return drone->id;
+    if ( drone != drones.end()){
+        return drone->id;
+    } else {
+        return -1;
+    }
 }
 void ControlCenter::await_sync() {
     redisReply *reply;
@@ -172,7 +176,19 @@ Job * create_job(int say, int sax, int ny, int nx, int dx, int dy) {
 
     return new_job;
 }
+void ControlCenter::send_substitute(int new_drone_id){
+    redisReply * rep;
+    Job * job = job_queue.back();
 
+    rep = (redisReply *)redisCommand(c, "XADD %d * type %s did %d say %d sax %d ny %d nx %d dx %d dy %d"
+                                            , new_drone_id, "task", new_drone_id, job->say,
+                                             job->sax, job->ny, job->nx, job->dx, job->dy );
+    job_queue.pop_back();
+    freeReplyObject(rep);
+    this->drones[new_drone_id].job = job;
+    this->drones[new_drone_id].status = FLYING_D;
+    
+}
 void ControlCenter::handle_msg(const char * type, redisReply *reply ) {
     int msg_type;
     if (strcmp(type,"low_battery") == 0) {
@@ -203,7 +219,12 @@ void ControlCenter::handle_msg(const char * type, redisReply *reply ) {
         Job *job = create_job(std::stoi(say),std::stoi(sax),std::stoi(ny),std::stoi(nx),std::stoi(dx), std::stoi(dy));
 
         int new_drone_id = get_available_drone_id(); // returns the first free drone
-
+        if ( new_drone_id == -1 ) {
+            job_queue.push_back(job);
+            free(this->drones[std::stoi(did)].job );
+            this->drones[std::stoi(did)].status = HOMING_D;
+            return;
+        }
 
         //printf(">>>>>>>>>sending %d drone\n",new_drone_id);
         redisReply * rep;
@@ -376,6 +397,7 @@ void ControlCenter::tick() {
                                     "diameter", "cc",  drone_stream);
                 assertReply(c,reply);
 
+
                 //dumpReply(reply,0);
                 if (reply->type == REDIS_REPLY_NIL || reply-> elements ==0 ) {
                     freeReplyObject(reply);
@@ -385,6 +407,13 @@ void ControlCenter::tick() {
 
                 handle_msg(msg_type, reply ); // function that handles msgs according to msg type
                 freeReplyObject(reply);
+            }
+
+            if (job_queue.size() > 0) {
+                int new_drone = get_available_drone_id();
+                if (new_drone != -1) {
+                    send_substitute(new_drone);
+                }
             }
 
 

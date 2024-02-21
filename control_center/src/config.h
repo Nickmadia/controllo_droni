@@ -4,7 +4,7 @@
 #define HORIZON 35540
 #define WIDTH 300//since we want points 20m apart
 #define HEIGHT 300 
-#define DRONES_COUNT 10000
+#define DRONES_COUNT 1000
 #define SUB_AREAS_SIDE 10
 #define SUB_AREAS_W 30 //should be 30 
 #define SUB_AREAS_H 30 

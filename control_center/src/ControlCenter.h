@@ -71,6 +71,7 @@ class ControlCenter {
 private:
     int pid;
     std::vector<Drone> drones;// vector of drones ids, make another drone class
+    std::vector<Job*> job_queue;
     int grid[WIDTH][HEIGHT];// griglia 2d of time stamps in unix epoch, will be used to calculate verified time
     Status status; 
     bool area_verified;
@@ -83,6 +84,7 @@ private:
 public:
     ControlCenter();
     double get_percentage(int curr_time);
+    void send_substitute(int new_drone);
     void dumpsubarea(int curr);
     void init_grid();
     void print_status();
