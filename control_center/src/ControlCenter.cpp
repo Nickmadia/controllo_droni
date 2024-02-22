@@ -1,4 +1,5 @@
 #include "ControlCenter.h"
+#include "../../con2redis/src/con2redis.h"
 #include <vector>
 void ControlCenter::print_status() {
     printf("status : %d\n",status);
@@ -87,7 +88,7 @@ void ControlCenter::init() {
     freeReplyObject(reply);
     //initStreams(c , str);
     reply = RedisCommand(c, "XGROUP CREATE %d diameter $ MKSTREAM", i);
-    dumpReply(reply,0);
+    //dumpReply(reply,0);
     assertReply(c, reply);
 
     freeReplyObject(reply);

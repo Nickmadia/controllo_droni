@@ -5,7 +5,7 @@ TARGET = bin/drone_simulation
 CC = g++
 IDIR=../con2redis/src
 # Opzioni di compilazione
-CFLAGS = -Wall -std=c++20 -lm -lhiredis -Wall -I. -I$(IDIR) -fpermissive
+CFLAGS = -Wall -std=c++20 -lm -lhiredis -Wall -I. -I$(IDIR) -I/usr/include/hiredis -fpermissive -L/usr/include/hiredis
 
 # Directory dei file sorgente
 SRCDIR = src
@@ -20,7 +20,7 @@ con2redis=$(wildcard ../con2redis/obj/*.o)
 
 # Comando per creare il programma eseguibile
 $(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) $(OBJECTS) $(con2redis) -o $(TARGET)
+	$(CC)  $(con2redis) $(OBJECTS) -o $(TARGET) $(CFLAGS)
 
 # Compila i file oggetto
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp $(DEPS)

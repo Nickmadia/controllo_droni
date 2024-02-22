@@ -1,13 +1,10 @@
 #include "Drone.h"
+#include "../con2redis/src/con2redis.h"
+#include <hiredis.h>
 const char *int_to_string(int x) {
     return std::to_string(x).c_str();
 }
-redisReply* read_stream(redisContext *c, const char *stream_name) {
-    // Read from the stream starting from the beginning
-    redisReply *reply = (redisReply *)redisCommand(c, "XREAD STREAMS %s 0", stream_name);
-    assertReply(c,reply);
-    return reply;
-}
+
 
 // Implementazione dei metodi della classe Drone
 Drone::Drone(int did) {
@@ -343,7 +340,7 @@ void Drone::tick(redisContext *c, int t) {
 
             reply = (redisReply*) RedisCommand(c, "XADD %s * type awk did %d", stream_name, id);
             printf("awk msg: ");
-            dumpReply(reply,0);
+            //dumpReply(reply,0);
             assertReplyType(c, reply, REDIS_REPLY_STRING);
 
             freeReplyObject(reply);

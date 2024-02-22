@@ -17,6 +17,7 @@
 #include <assert.h>
 #include <iostream>
 #include <fstream>
+#include <hiredis/hiredis.h>
 void save_to_csv(bool verified_area, int t , std::string filename);
 void print_parameters();
 bool is_verified(int last_v, int current_time); // checks single point

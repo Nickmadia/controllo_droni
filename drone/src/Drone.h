@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <string>
 #include <cstring>
+#include <hiredis/hiredis.h>
 
 typedef struct {
     int sax; //subarea x 
